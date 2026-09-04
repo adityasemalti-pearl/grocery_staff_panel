@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { staffLogin } from "../api/authApis";
 import { saveSession } from "../utils/auth";
 
@@ -8,6 +9,7 @@ export default function Login() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -33,10 +35,7 @@ export default function Login() {
       console.log("Staff login response:", response);
 
       // Check API response
-      if (
-        !response?.success ||
-        !response?.data?.accessToken
-      ) {
+      if (!response?.success || !response?.data?.accessToken) {
         throw new Error(
           response?.message || "Login failed. Please try again."
         );
@@ -63,11 +62,7 @@ export default function Login() {
         error?.message ||
         "Unable to login. Please try again.";
 
-      setError(
-        Array.isArray(message)
-          ? message.join(", ")
-          : message
-      );
+      setError(Array.isArray(message) ? message.join(", ") : message);
     } finally {
       setLoading(false);
     }
@@ -98,20 +93,46 @@ export default function Login() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={handleSubmit}
+          autoComplete="off"
+          spellCheck={false}
+        >
+          {/* 
+            Fake fields to discourage browser/password-manager autofill.
+            They are intentionally hidden from the user.
+          */}
+          <input
+            type="text"
+            name="fake_username"
+            autoComplete="username"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute -left-[9999px] opacity-0 pointer-events-none"
+          />
+
+          <input
+            type="password"
+            name="fake_password"
+            autoComplete="current-password"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute -left-[9999px] opacity-0 pointer-events-none"
+          />
 
           {/* Username */}
           <label
-            htmlFor="username"
+            htmlFor="staff-login-username"
             className="block text-[13px] font-semibold text-[#5b6960] mb-1.5"
           >
             Username
           </label>
 
           <input
-            id="username"
+            id="staff-login-username"
             type="text"
-            autoComplete="username"
+            name="staff_login_username"
+            autoComplete="off"
             value={username}
             onChange={(e) => {
               setUsername(e.target.value);
@@ -127,28 +148,46 @@ export default function Login() {
 
           {/* Password */}
           <label
-            htmlFor="password"
+            htmlFor="staff-login-password"
             className="block text-[13px] font-semibold text-[#5b6960] mb-1.5"
           >
             Password
           </label>
 
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
+          <div className="relative mb-[18px]">
+            <input
+              id="staff-login-password"
+              type={showPassword ? "text" : "password"}
+              name="staff_login_password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
 
-              if (error) {
-                setError("");
-              }
-            }}
-            disabled={loading}
-            placeholder="Enter password"
-            className="w-full px-3.5 py-3 border border-[#dde3dc] rounded-[9px] text-base mb-[18px] outline-none focus:ring-2 focus:ring-[#1b7340] focus:border-[#1b7340] disabled:bg-gray-50 disabled:cursor-not-allowed"
-          />
+                if (error) {
+                  setError("");
+                }
+              }}
+              disabled={loading}
+              placeholder="Enter password"
+              className="w-full px-3.5 py-3 pr-11 border border-[#dde3dc] rounded-[9px] text-base outline-none focus:ring-2 focus:ring-[#1b7340] focus:border-[#1b7340] disabled:bg-gray-50 disabled:cursor-not-allowed"
+            />
+
+            {/* Eye Button */}
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              disabled={loading}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#68756d] hover:text-[#1b7340] transition disabled:opacity-50"
+            >
+              {showPassword ? (
+                <EyeOff className="w-[18px] h-[18px]" />
+              ) : (
+                <Eye className="w-[18px] h-[18px]" />
+              )}
+            </button>
+          </div>
 
           {/* Login Button */}
           <button
