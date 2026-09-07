@@ -115,11 +115,13 @@ export const receiveStock = async (variantId, stockData) => {
   }
 };
 
-export const uploadProductImage = async (file) => {
+export const uploadProductImage = async (file, productId) => {
   try {
     const formData = new FormData();
+  
 
     formData.append("file", file);
+    formData.append("productId", productId);
 
     const response = await api.post("/uploads/product-image", formData);
 
