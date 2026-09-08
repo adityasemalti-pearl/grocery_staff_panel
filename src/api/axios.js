@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL:"http://72.62.228.103:3000",
+  baseURL: "http://72.62.228.103:3000",
   headers: {
     "Content-Type": "application/json",
   },
@@ -16,6 +16,25 @@ api.interceptors.request.use(
 
     if (session?.accessToken) {
       config.headers.Authorization = `Bearer ${session.accessToken}`;
+    }
+
+    /*
+     * The instance-level default above ("application/json") stops axios
+     * from ever auto-detecting FormData bodies, so a multipart request
+     * would get sent with the wrong Content-Type (no boundary) and the
+     * backend would see an empty/unparseable body.
+     *
+     * Whenever a request's data IS a FormData instance (product photo
+     * uploads, etc.), drop the Content-Type header here so the browser
+     * sets "multipart/form-data; boundary=..." itself.
+     */
+    if (config.data instanceof FormData) {
+      if (typeof config.headers?.delete === "function") {
+        // AxiosHeaders instance (axios v1+)
+        config.headers.delete("Content-Type");
+      } else if (config.headers) {
+        delete config.headers["Content-Type"];
+      }
     }
 
     return config;

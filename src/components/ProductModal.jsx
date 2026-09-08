@@ -1,20 +1,34 @@
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createProduct,
   updateProduct,
   updateProductVariant,
-  uploadProductImage,
   receiveStock,
 } from "../api/productApis";
 
+let tempImageId = 0;
+const nextTempId = () => `temp-${Date.now()}-${tempImageId++}`;
+
+/*
+ * Field names the /products route expects for photos. Confirmed from the
+ * create payload you tested with: "images" carries the actual file(s).
+ * The two below (existing photos kept on an edit, and which one is primary)
+ * are our best-guess names for the update side — there wasn't a sample
+ * payload for that yet, so rename these in one place if your API differs.
+ */
+const IMAGES_FIELD = "images";
+const EXISTING_IMAGES_FIELD = "existingImages";
+const PRIMARY_IMAGE_FIELD = "primaryImageUrl";
+
 export default function ProductModal({
   categories,
+  brands,
   product,
   onClose,
   onSuccess,
 }) {
   const isEdit = !!product;
+  const fileInputRef = useRef(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -33,12 +47,17 @@ export default function ProductModal({
 
   const [variants, setVariants] = useState([]);
 
-  const [imageFile, setImageFile] = useState(null);
-  const [imageUrl, setImageUrl] = useState("");
-  const [imagePreview, setImagePreview] = useState("");
-
-  const [uploadingImage, setUploadingImage] =
-    useState(false);
+  /*
+   * images: [{ id, url, previewUrl, file, isExisting }]
+   * - isExisting: true for photos already saved on the product (url points at
+   *   the server), false for a newly picked file that will upload on submit
+   * - url: server URL for existing photos, "" for not-yet-saved new ones
+   * - previewUrl: what we render — the server url, or a local object URL for
+   *   a freshly picked file
+   * - file: the original File for new photos (null for existing ones)
+   * The first entry in the array is always treated as the primary photo.
+   */
+  const [images, setImages] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -113,15 +132,30 @@ export default function ProductModal({
         }))
       );
 
-      const existingImage =
-        product.imageUrl ||
-        product.image ||
-        product.productImage ||
-        "";
+      /*
+       * Existing photos come back as product.images (ordered array).
+       * Fall back to a single legacy image field for older records that
+       * predate multi-image support.
+       */
+      const existingImages =
+        Array.isArray(product.images) && product.images.length
+          ? product.images
+          : [
+              product.imageUrl ||
+                product.image ||
+                product.productImage ||
+                "",
+            ].filter(Boolean);
 
-      setImageUrl(existingImage);
-      setImagePreview(existingImage);
-      setImageFile(null);
+      setImages(
+        existingImages.map((url) => ({
+          id: url,
+          url,
+          previewUrl: url,
+          file: null,
+          isExisting: true,
+        }))
+      );
     } else {
       setForm({
         name: "",
@@ -139,9 +173,7 @@ export default function ProductModal({
       });
 
       setVariants([]);
-      setImageUrl("");
-      setImagePreview("");
-      setImageFile(null);
+      setImages([]);
     }
 
     setError("");
@@ -167,65 +199,46 @@ export default function ProductModal({
     );
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files?.[0];
+  const handleImagesChange = (e) => {
+    const files = Array.from(e.target.files || []);
 
-    if (!file) return;
+    e.target.value = "";
 
-    setImageFile(file);
+    if (!files.length) return;
+
     setError("");
 
-    const localPreview =
-      URL.createObjectURL(file);
+    const newEntries = files.map((file) => ({
+      id: nextTempId(),
+      url: "",
+      previewUrl: URL.createObjectURL(file),
+      file,
+      isExisting: false,
+    }));
 
-    setImagePreview(localPreview);
+    setImages((prev) => [...prev, ...newEntries]);
+  };
 
-    try {
-      setUploadingImage(true);
+  const removeImage = (imageId) => {
+    setImages((prev) =>
+      prev.filter((image) => image.id !== imageId)
+    );
+  };
 
-      /*
-       * Keeping your existing upload API.
-       * For edit, productId is passed when available.
-       */
-      const response =
-        await uploadProductImage(
-          file,
-          product?.id
-        );
-
-      const url =
-        response?.data?.url ||
-        response?.url ||
-        response?.data?.imageUrl ||
-        response?.imageUrl ||
-        "";
-
-      if (!url) {
-        throw new Error(
-          "Image URL was not returned"
-        );
-      }
-
-      setImageUrl(url);
-    } catch (err) {
-      setImageFile(null);
-
-      const oldImage =
-        product?.imageUrl ||
-        product?.image ||
-        product?.productImage ||
-        "";
-
-      setImagePreview(oldImage);
-      setImageUrl(oldImage);
-
-      setError(
-        err?.message ||
-          "Failed to upload image."
+  const makePrimary = (imageId) => {
+    setImages((prev) => {
+      const index = prev.findIndex(
+        (image) => image.id === imageId
       );
-    } finally {
-      setUploadingImage(false);
-    }
+
+      if (index <= 0) return prev;
+
+      const next = [...prev];
+      const [selected] = next.splice(index, 1);
+      next.unshift(selected);
+
+      return next;
+    });
   };
 
   const validateEditVariants = () => {
@@ -271,13 +284,6 @@ export default function ProductModal({
 
     setError("");
 
-    if (uploadingImage) {
-      setError(
-        "Please wait until the image upload is completed."
-      );
-      return;
-    }
-
     if (!form.name.trim()) {
       setError("Product name is required.");
       return;
@@ -295,29 +301,78 @@ export default function ProductModal({
          EDIT PRODUCT
       ========================= */
       if (isEdit) {
-        const productPayload = {
-          name: form.name.trim(),
-          slug:
-            form.slug.trim() ||
-            undefined,
-          description:
-            form.description.trim() ||
-            null,
-          brandId:
-            form.brandId.trim() ||
-            null,
-          categoryId: form.categoryId,
-          imageUrl:
-            imageUrl || null,
-          isActive: form.isActive,
-        };
+        const productFormData = new FormData();
+
+        productFormData.append("name", form.name.trim());
+
+        if (form.slug.trim()) {
+          productFormData.append("slug", form.slug.trim());
+        }
+
+        productFormData.append(
+          "description",
+          form.description.trim()
+        );
+
+        if (form.brandId) {
+          productFormData.append(
+            "brandId",
+            form.brandId
+          );
+        }
+
+        productFormData.append(
+          "categoryId",
+          form.categoryId
+        );
+
+        productFormData.append(
+          "isActive",
+          String(form.isActive)
+        );
+
+        /*
+         * Photos that already live on the product (server URLs), in the
+         * order they should appear — the caller/backend is responsible
+         * for reconciling this against what's actually stored.
+         */
+        const keptExistingUrls = images
+          .filter((image) => image.isExisting)
+          .map((image) => image.url);
+
+        productFormData.append(
+          EXISTING_IMAGES_FIELD,
+          JSON.stringify(keptExistingUrls)
+        );
+
+        /*
+         * Freshly picked photos that haven't been uploaded anywhere yet —
+         * they go up together with the rest of the product data.
+         */
+        images
+          .filter((image) => !image.isExisting)
+          .forEach((image) => {
+            productFormData.append(IMAGES_FIELD, image.file);
+          });
+
+        /*
+         * Tell the backend which photo is primary. If it's one of the
+         * existing photos we can name it directly; if it's a freshly
+         * picked file, it's simply the first entry under IMAGES_FIELD.
+         */
+        if (images[0]?.isExisting) {
+          productFormData.append(
+            PRIMARY_IMAGE_FIELD,
+            images[0].url
+          );
+        }
 
         /*
          * Update main product first.
          */
         await updateProduct(
           product.id,
-          productPayload
+          productFormData
         );
 
         /*
@@ -405,32 +460,52 @@ export default function ProductModal({
         return;
       }
 
-      const payload = {
-        name: form.name.trim(),
-        slug:
-          form.slug.trim() || undefined,
-        description:
-          form.description.trim() ||
-          undefined,
-        brandId:
-          form.brandId.trim() || undefined,
-        categoryId: form.categoryId,
-        imageUrl:
-          imageUrl || undefined,
-        variants: [
+      const formData = new FormData();
+
+      formData.append("name", form.name.trim());
+
+      if (form.slug.trim()) {
+        formData.append("slug", form.slug.trim());
+      }
+
+      formData.append(
+        "description",
+        form.description.trim()
+      );
+
+      if (form.brandId) {
+        formData.append("brandId", form.brandId);
+      }
+
+      formData.append(
+        "categoryId",
+        form.categoryId
+      );
+
+      formData.append(
+        "variants",
+        JSON.stringify([
           {
             sku: form.sku.trim(),
             weight: Number(form.weight),
             unit: form.unit,
             mrp: Number(form.mrp),
-            sellingPrice:
-              Number(form.sellingPrice),
+            sellingPrice: Number(form.sellingPrice),
           },
-        ],
-      };
+        ])
+      );
+
+      /*
+       * All photos are brand new at creation time — every entry in
+       * `images` is an unsaved File, appended in the order the staff
+       * arranged them (first = primary).
+       */
+      images.forEach((image) => {
+        formData.append(IMAGES_FIELD, image.file);
+      });
 
       const response =
-        await createProduct(payload);
+        await createProduct(formData);
 
       const createdProduct =
         response?.data || response;
@@ -559,10 +634,10 @@ export default function ProductModal({
 
             <div>
               <label className="label">
-                Brand ID
+                Brand
               </label>
 
-              <input
+              <select
                 value={form.brandId}
                 onChange={(e) =>
                   update(
@@ -571,74 +646,51 @@ export default function ProductModal({
                   )
                 }
                 className="input"
-                placeholder="Brand ID"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-x-3.5">
-            <div>
-              <label className="label">
-                Category
-              </label>
-
-              <select
-                required
-                value={form.categoryId}
-                onChange={(e) =>
-                  update(
-                    "categoryId",
-                    e.target.value
-                  )
-                }
-                className="input"
               >
                 <option value="">
-                  Select category
+                  No brand
                 </option>
 
-                {categories.map((cat) => (
+                {(brands || []).map((brand) => (
                   <option
-                    key={cat.id}
-                    value={cat.id}
+                    key={brand.id}
+                    value={brand.id}
                   >
-                    {cat.name}
+                    {brand.name}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div>
-              <label className="label">
-                Product photo
-              </label>
-
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={
-                  handleImageChange
-                }
-                className="input text-sm"
-              />
-
-              {uploadingImage && (
-                <p className="text-xs text-[#1b7340] mt-1">
-                  Uploading image...
-                </p>
-              )}
-
-              {imagePreview && (
-                <div className="mt-2 w-20 h-20 rounded-lg overflow-hidden border border-[#dde3dc]">
-                  <img
-                    src={imagePreview}
-                    alt="Product"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-            </div>
           </div>
+
+          <label className="label">
+            Category
+          </label>
+
+          <select
+            required
+            value={form.categoryId}
+            onChange={(e) =>
+              update(
+                "categoryId",
+                e.target.value
+              )
+            }
+            className="input"
+          >
+            <option value="">
+              Select category
+            </option>
+
+            {categories.map((cat) => (
+              <option
+                key={cat.id}
+                value={cat.id}
+              >
+                {cat.name}
+              </option>
+            ))}
+          </select>
 
           <label className="label">
             Description
@@ -675,6 +727,92 @@ export default function ProductModal({
               </label>
             </div>
           )}
+
+          {/* =========================
+              PRODUCT PHOTOS
+          ========================= */}
+
+          <div className="h-px bg-[#dde3dc] my-[20px]" />
+
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs uppercase tracking-wider text-[#5b6960] font-semibold">
+              Product Photos
+            </p>
+
+            <span className="text-xs text-[#5b6960]">
+              {images.length} photo
+              {images.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <p className="text-xs text-[#5b6960] mb-3">
+            The first photo is used as the main listing image. New photos
+            upload when you save.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            {images.map((image, index) => (
+              <div
+                key={image.id}
+                className="relative w-20 h-20 rounded-lg overflow-hidden border border-[#dde3dc] bg-[#f7f8f4] group"
+              >
+                <img
+                  src={image.previewUrl}
+                  alt={`Product photo ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+
+                {index === 0 && (
+                  <span className="absolute bottom-0 left-0 right-0 bg-[#1b7340] text-white text-[9px] font-bold uppercase tracking-wide text-center py-0.5">
+                    Primary
+                  </span>
+                )}
+
+                {!image.isExisting && index !== 0 && (
+                  <span className="absolute bottom-0 left-0 right-0 bg-[#1b1f1c]/70 text-white text-[9px] font-semibold text-center py-0.5">
+                    New
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => removeImage(image.id)}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-[#1b1f1c]/70 text-white text-xs leading-none flex items-center justify-center hover:bg-[#b3382c]"
+                  aria-label="Remove photo"
+                >
+                  ×
+                </button>
+
+                {index !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => makePrimary(image.id)}
+                    className="absolute bottom-0 left-0 right-0 bg-[#1b1f1c]/60 text-white text-[9px] font-semibold text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Make primary
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-20 h-20 rounded-lg border-2 border-dashed border-[#dde3dc] text-[#5b6960] text-xs font-semibold flex flex-col items-center justify-center gap-1 hover:border-[#1b7340] hover:text-[#1b7340]"
+            >
+              <span className="text-xl leading-none">+</span>
+              Add photo
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              onChange={handleImagesChange}
+              className="hidden"
+            />
+          </div>
 
           {/* =========================
               EXISTING VARIANTS
@@ -1077,10 +1215,7 @@ export default function ProductModal({
 
             <button
               type="submit"
-              disabled={
-                loading ||
-                uploadingImage
-              }
+              disabled={loading}
               className="flex-1 py-3 bg-[#1b7340] hover:bg-[#124d2a] text-white rounded-lg font-semibold disabled:opacity-60"
             >
               {loading
@@ -1095,8 +1230,3 @@ export default function ProductModal({
     </div>
   );
 }
-
-
-
-
-

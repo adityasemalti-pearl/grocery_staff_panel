@@ -5,6 +5,7 @@ import AddVariantModal from "../components/AddVariantModal";
 import ReceiveStockModal from "../components/ReceiveStockModal";
 import {
   getCategories,
+  getBrands,
   getProducts,
   addProductVariant,
   updateProductVariant,
@@ -17,6 +18,9 @@ export default function Products() {
     useState([]);
 
   const [categories, setCategories] =
+    useState([]);
+
+  const [brands, setBrands] =
     useState([]);
 
   const [search, setSearch] =
@@ -106,6 +110,19 @@ export default function Products() {
     }
   };
 
+  const loadBrands = async () => {
+    try {
+      const response = await getBrands();
+
+      const data =
+        normalizeCategories(response);
+
+      setBrands(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const loadProducts = async () => {
     try {
       setLoading(true);
@@ -183,6 +200,7 @@ export default function Products() {
 
   useEffect(() => {
     loadCategories();
+    loadBrands();
   }, []);
 
   useEffect(() => {
@@ -386,13 +404,42 @@ export default function Products() {
     );
   };
 
+  const brandName = (product) => {
+    if (product.brand?.name) {
+      return product.brand.name;
+    }
+
+    if (!product.brandId) {
+      return "";
+    }
+
+    const found = brands.find(
+      (brand) =>
+        String(brand.id) ===
+        String(product.brandId)
+    );
+
+    return found?.name || "";
+  };
+
   const productImage = (product) => {
     return (
       product.imageUrl ||
       product.image ||
       product.productImage ||
+      (Array.isArray(product.images)
+        ? product.images[0]
+        : "") ||
       ""
     );
+  };
+
+  const productImageCount = (product) => {
+    if (Array.isArray(product.images)) {
+      return product.images.length;
+    }
+
+    return productImage(product) ? 1 : 0;
   };
 
   const filteredProducts = useMemo(() => {
@@ -473,6 +520,11 @@ export default function Products() {
                     product
                   );
 
+                const imageCount =
+                  productImageCount(
+                    product
+                  );
+
                 const active =
                   product.isActive !==
                   undefined
@@ -489,7 +541,7 @@ export default function Products() {
                   >
                     <div className="flex justify-between items-start gap-3 mb-2.5">
                       <div className="flex gap-3">
-                        <div className="w-14 h-14 rounded-lg bg-[#f7f8f4] border border-[#dde3dc] flex items-center justify-center overflow-hidden">
+                        <div className="relative w-14 h-14 rounded-lg bg-[#f7f8f4] border border-[#dde3dc] flex items-center justify-center overflow-hidden">
                           {image ? (
                             <img
                               src={image}
@@ -503,6 +555,12 @@ export default function Products() {
                               No photo
                             </span>
                           )}
+
+                          {imageCount > 1 && (
+                            <span className="absolute bottom-0 right-0 bg-[#1b1f1c]/75 text-white text-[9px] font-bold px-1 rounded-tl-md">
+                              +{imageCount - 1}
+                            </span>
+                          )}
                         </div>
 
                         <div>
@@ -513,6 +571,12 @@ export default function Products() {
                           </div>
 
                           <div className="text-[#5b6960] text-[13px] mt-0.5">
+                            {brandName(product) && (
+                              <>
+                                {brandName(product)}
+                                {" · "}
+                              </>
+                            )}
                             {categoryName(
                               product
                             )}{" "}
@@ -752,6 +816,7 @@ export default function Products() {
       {productModal && (
         <ProductModal
           categories={categories}
+          brands={brands}
           product={
             productModal.mode ===
             "edit"
