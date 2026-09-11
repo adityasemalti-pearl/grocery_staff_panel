@@ -15,6 +15,7 @@ import Layout from "./components/layout/Layout";
 import Customers from "./pages/Customers";
 import Categories from "./pages/Categories";
 import Settings from "./pages/Settings";
+import Brand from "./pages/Brand";
 
 function App() {
   return (
@@ -34,9 +35,11 @@ function App() {
 
             <Route path="/orders" element={<Orders />} />
 
-            <Route path="/products" element={<Products />} />
+            
             <Route path="/customers" element={<Customers />} />
             <Route path="/categories" element={<Categories />} />
+            <Route path="/brand" element={<Brand />} />
+            <Route path="/products" element={<Products />} />
             <Route path="/settings" element={<Settings />} />
 
           </Route>

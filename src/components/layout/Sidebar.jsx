@@ -48,6 +48,12 @@ const menuItems = [
     icon: Tags,
     path: "/categories",
   },
+   {
+    label: "Brand",
+    icon: Tags,
+    path: "/brand",
+  },
+
 //   {
 //     label: "Analytics",
 //     icon: BarChart3,

@@ -6,17 +6,17 @@ import {
   Trash2,
   Eye,
   X,
-  Image as ImageIcon,
+  Tag,
   Package,
   CheckCircle2,
   XCircle,
 } from "lucide-react";
 import {
-  getCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from "../api/categoriesApis";
+  getBrands,
+  createBrand,
+  updateBrand,
+  deleteBrand,
+} from "../api/brandApis";
 import { getProducts } from "../api/productApis";
 
 const slugify = (value) =>
@@ -46,12 +46,11 @@ const normalizeList = (response) => {
 const EMPTY_FORM = {
   name: "",
   slug: "",
-  description: "",
   isActive: true,
 };
 
-export default function Categories() {
-  const [categories, setCategories] = useState([]);
+export default function Brands() {
+  const [brands, setBrands] = useState([]);
   const [productCounts, setProductCounts] = useState({});
 
   const [loading, setLoading] = useState(true);
@@ -65,8 +64,8 @@ export default function Categories() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [editingBrand, setEditingBrand] = useState(null);
+  const [selectedBrand, setSelectedBrand] = useState(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -85,25 +84,25 @@ export default function Categories() {
     }, 3000);
   };
 
-  const loadCategories = async () => {
+  const loadBrands = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await getCategories();
-      setCategories(normalizeList(response));
+      const response = await getBrands();
+      setBrands(normalizeList(response));
     } catch (err) {
       setError(err.message);
-      setCategories([]);
+      setBrands([]);
     } finally {
       setLoading(false);
     }
   };
 
   /*
-   * The /categories API doesn't return a product count, so we derive it
-   * from the products list. This is best-effort: if it fails for any
-   * reason, categories still load fine and just show 0 products.
+   * The /brands API doesn't return a product count, so we derive it from
+   * the products list, same approach used on the Categories page. Best
+   * effort — if this fails, brands still load fine and just show 0.
    */
   const loadProductCounts = async () => {
     try {
@@ -113,12 +112,11 @@ export default function Categories() {
       const counts = {};
 
       products.forEach((product) => {
-        const categoryId =
-          product.categoryId || product.category?.id;
+        const brandId = product.brandId || product.brand?.id;
 
-        if (!categoryId) return;
+        if (!brandId) return;
 
-        counts[categoryId] = (counts[categoryId] || 0) + 1;
+        counts[brandId] = (counts[brandId] || 0) + 1;
       });
 
       setProductCounts(counts);
@@ -128,20 +126,20 @@ export default function Categories() {
   };
 
   useEffect(() => {
-    loadCategories();
+    loadBrands();
     loadProductCounts();
   }, []);
 
-  const filteredCategories = useMemo(() => {
-    return categories.filter((category) => {
-      const name = category.name || "";
-      const description = category.description || "";
+  const filteredBrands = useMemo(() => {
+    return brands.filter((brand) => {
+      const name = brand.name || "";
+      const slug = brand.slug || "";
 
       const matchesSearch =
         name.toLowerCase().includes(search.toLowerCase()) ||
-        description.toLowerCase().includes(search.toLowerCase());
+        slug.toLowerCase().includes(search.toLowerCase());
 
-      const isActive = category.isActive !== false;
+      const isActive = brand.isActive !== false;
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -150,15 +148,15 @@ export default function Categories() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [categories, search, statusFilter]);
+  }, [brands, search, statusFilter]);
 
-  const totalCategories = categories.length;
+  const totalBrands = brands.length;
 
-  const activeCategories = categories.filter(
+  const activeBrands = brands.filter(
     (item) => item.isActive !== false
   ).length;
 
-  const inactiveCategories = categories.filter(
+  const inactiveBrands = brands.filter(
     (item) => item.isActive === false
   ).length;
 
@@ -168,36 +166,35 @@ export default function Categories() {
   );
 
   const openAddModal = () => {
-    setEditingCategory(null);
+    setEditingBrand(null);
     setForm(EMPTY_FORM);
     setSlugTouched(false);
     setFormError("");
     setModalOpen(true);
   };
 
-  const openEditModal = (category) => {
-    setEditingCategory(category);
+  const openEditModal = (brand) => {
+    setEditingBrand(brand);
 
     setForm({
-      name: category.name || "",
-      slug: category.slug || "",
-      description: category.description || "",
-      isActive: category.isActive !== false,
+      name: brand.name || "",
+      slug: brand.slug || "",
+      isActive: brand.isActive !== false,
     });
 
-    // Existing categories already have a slug — don't auto-overwrite it.
+    // Existing brands already have a slug — don't auto-overwrite it.
     setSlugTouched(true);
     setFormError("");
     setModalOpen(true);
   };
 
-  const openViewModal = (category) => {
-    setSelectedCategory(category);
+  const openViewModal = (brand) => {
+    setSelectedBrand(brand);
     setViewModalOpen(true);
   };
 
-  const openDeleteModal = (category) => {
-    setSelectedCategory(category);
+  const openDeleteModal = (brand) => {
+    setSelectedBrand(brand);
     setDeleteError("");
     setDeleteModalOpen(true);
   };
@@ -229,7 +226,7 @@ export default function Categories() {
     setFormError("");
 
     if (!form.name.trim()) {
-      setFormError("Category name is required.");
+      setFormError("Brand name is required.");
       return;
     }
 
@@ -241,20 +238,18 @@ export default function Categories() {
     try {
       setSaving(true);
 
-      if (editingCategory) {
-        await updateCategory(editingCategory.id, {
+      if (editingBrand) {
+        await updateBrand(editingBrand.id, {
           name: form.name.trim(),
           slug: form.slug.trim(),
-          description: form.description.trim(),
           isActive: form.isActive,
         });
 
-        showToast("Category updated successfully");
+        showToast("Brand updated successfully");
       } else {
         const payload = {
           name: form.name.trim(),
           slug: form.slug.trim(),
-          description: form.description.trim(),
         };
 
         // Only sent when it deviates from the backend's default (active).
@@ -262,13 +257,13 @@ export default function Categories() {
           payload.isActive = false;
         }
 
-        await createCategory(payload);
+        await createBrand(payload);
 
-        showToast("Category created successfully");
+        showToast("Brand created successfully");
       }
 
       setModalOpen(false);
-      await loadCategories();
+      await loadBrands();
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -277,20 +272,20 @@ export default function Categories() {
   };
 
   const handleDelete = async () => {
-    if (!selectedCategory) return;
+    if (!selectedBrand) return;
 
     setDeleteError("");
 
     try {
       setDeleting(true);
 
-      await deleteCategory(selectedCategory.id);
+      await deleteBrand(selectedBrand.id);
 
       setDeleteModalOpen(false);
-      setSelectedCategory(null);
-      showToast("Category deleted successfully");
+      setSelectedBrand(null);
+      showToast("Brand deleted successfully");
 
-      await loadCategories();
+      await loadBrands();
     } catch (err) {
       setDeleteError(err.message);
     } finally {
@@ -298,26 +293,26 @@ export default function Categories() {
     }
   };
 
-  const toggleStatus = async (category) => {
-    const nextIsActive = !(category.isActive !== false);
+  const toggleStatus = async (brand) => {
+    const nextIsActive = !(brand.isActive !== false);
 
     // Optimistic update so the toggle feels instant.
-    setCategories((prev) =>
+    setBrands((prev) =>
       prev.map((item) =>
-        item.id === category.id
+        item.id === brand.id
           ? { ...item, isActive: nextIsActive }
           : item
       )
     );
 
     try {
-      await updateCategory(category.id, { isActive: nextIsActive });
+      await updateBrand(brand.id, { isActive: nextIsActive });
     } catch (err) {
       // Revert on failure.
-      setCategories((prev) =>
+      setBrands((prev) =>
         prev.map((item) =>
-          item.id === category.id
-            ? { ...item, isActive: category.isActive }
+          item.id === brand.id
+            ? { ...item, isActive: brand.isActive }
             : item
         )
       );
@@ -333,11 +328,11 @@ export default function Categories() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900">
-            Categories
+            Brands
           </h2>
 
           <p className="text-sm text-gray-400 mt-1">
-            Manage your store categories and organize products.
+            Manage the brands your products are sold under.
           </p>
         </div>
 
@@ -346,7 +341,7 @@ export default function Categories() {
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Add Category
+          Add Brand
         </button>
       </div>
 
@@ -360,20 +355,20 @@ export default function Categories() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 
         <StatCard
-          title="Total Categories"
-          value={totalCategories}
-          icon={<Package className="w-5 h-5" />}
+          title="Total Brands"
+          value={totalBrands}
+          icon={<Tag className="w-5 h-5" />}
         />
 
         <StatCard
           title="Active"
-          value={activeCategories}
+          value={activeBrands}
           icon={<CheckCircle2 className="w-5 h-5" />}
         />
 
         <StatCard
           title="Inactive"
-          value={inactiveCategories}
+          value={inactiveBrands}
           icon={<XCircle className="w-5 h-5" />}
         />
 
@@ -394,7 +389,7 @@ export default function Categories() {
 
             <input
               type="text"
-              placeholder="Search categories..."
+              placeholder="Search brands..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full ml-2 bg-transparent outline-none text-sm text-gray-700 placeholder:text-gray-400"
@@ -416,7 +411,7 @@ export default function Categories() {
 
       {loading ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-14 text-center text-sm text-gray-400">
-          Loading categories...
+          Loading brands...
         </div>
       ) : (
         <>
@@ -430,11 +425,11 @@ export default function Categories() {
                   <tr className="border-b border-gray-100 bg-gray-50/70">
 
                     <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                      Category
+                      Brand
                     </th>
 
                     <th className="text-left px-5 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                      Description
+                      Slug
                     </th>
 
                     <th className="text-center px-5 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-400">
@@ -453,42 +448,37 @@ export default function Categories() {
                 </thead>
 
                 <tbody>
-                  {filteredCategories.map((category) => {
-                    const isActive = category.isActive !== false;
-                    const productCount =
-                      productCounts[category.id] || 0;
+                  {filteredBrands.map((brand) => {
+                    const isActive = brand.isActive !== false;
+                    const productCount = productCounts[brand.id] || 0;
 
                     return (
                       <tr
-                        key={category.id}
+                        key={brand.id}
                         className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition"
                       >
 
-                        {/* Category */}
+                        {/* Brand */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
 
-                            <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
-                              <ImageIcon className="w-5 h-5 text-gray-400" />
+                            <div className="w-12 h-12 rounded-xl bg-green-50 overflow-hidden flex items-center justify-center shrink-0">
+                              <Tag className="w-5 h-5 text-green-600" />
                             </div>
 
                             <div>
                               <p className="text-sm font-bold text-gray-900">
-                                {category.name}
-                              </p>
-
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                {category.slug}
+                                {brand.name}
                               </p>
                             </div>
 
                           </div>
                         </td>
 
-                        {/* Description */}
+                        {/* Slug */}
                         <td className="px-5 py-4">
-                          <p className="text-sm text-gray-500 max-w-[280px] truncate">
-                            {category.description || "No description"}
+                          <p className="text-sm text-gray-500">
+                            {brand.slug}
                           </p>
                         </td>
 
@@ -502,7 +492,7 @@ export default function Categories() {
                         {/* Status */}
                         <td className="px-5 py-4 text-center">
                           <button
-                            onClick={() => toggleStatus(category)}
+                            onClick={() => toggleStatus(brand)}
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold ${
                               isActive
                                 ? "bg-green-50 text-green-700"
@@ -524,7 +514,7 @@ export default function Categories() {
                           <div className="flex justify-end items-center gap-1">
 
                             <button
-                              onClick={() => openViewModal(category)}
+                              onClick={() => openViewModal(brand)}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition"
                               title="View"
                             >
@@ -532,7 +522,7 @@ export default function Categories() {
                             </button>
 
                             <button
-                              onClick={() => openEditModal(category)}
+                              onClick={() => openEditModal(brand)}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-green-50 hover:text-green-600 transition"
                               title="Edit"
                             >
@@ -540,7 +530,7 @@ export default function Categories() {
                             </button>
 
                             <button
-                              onClick={() => openDeleteModal(category)}
+                              onClick={() => openDeleteModal(brand)}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 transition"
                               title="Delete"
                             >
@@ -558,7 +548,7 @@ export default function Categories() {
               </table>
             </div>
 
-            {filteredCategories.length === 0 && (
+            {filteredBrands.length === 0 && (
               <EmptyState />
             )}
 
@@ -567,20 +557,20 @@ export default function Categories() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
 
-            {filteredCategories.map((category) => {
-              const isActive = category.isActive !== false;
-              const productCount = productCounts[category.id] || 0;
+            {filteredBrands.map((brand) => {
+              const isActive = brand.isActive !== false;
+              const productCount = productCounts[brand.id] || 0;
 
               return (
                 <div
-                  key={category.id}
+                  key={brand.id}
                   className="bg-white rounded-2xl border border-gray-100 p-4"
                 >
 
                   <div className="flex items-start gap-3">
 
-                    <div className="w-14 h-14 rounded-xl bg-gray-100 overflow-hidden shrink-0 flex items-center justify-center">
-                      <ImageIcon className="w-5 h-5 text-gray-400" />
+                    <div className="w-14 h-14 rounded-xl bg-green-50 shrink-0 flex items-center justify-center">
+                      <Tag className="w-5 h-5 text-green-600" />
                     </div>
 
                     <div className="flex-1 min-w-0">
@@ -588,16 +578,16 @@ export default function Categories() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="text-sm font-bold text-gray-900">
-                            {category.name}
+                            {brand.name}
                           </h3>
 
                           <p className="text-xs text-gray-400 mt-1">
-                            {category.description}
+                            {brand.slug}
                           </p>
                         </div>
 
                         <button
-                          onClick={() => toggleStatus(category)}
+                          onClick={() => toggleStatus(brand)}
                           className={`shrink-0 px-2 py-1 rounded-lg text-[10px] font-bold ${
                             isActive
                               ? "bg-green-50 text-green-700"
@@ -620,21 +610,21 @@ export default function Categories() {
                         <div className="flex items-center gap-1">
 
                           <button
-                            onClick={() => openViewModal(category)}
+                            onClick={() => openViewModal(brand)}
                             className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
 
                           <button
-                            onClick={() => openEditModal(category)}
+                            onClick={() => openEditModal(brand)}
                             className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
 
                           <button
-                            onClick={() => openDeleteModal(category)}
+                            onClick={() => openDeleteModal(brand)}
                             className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-red-500"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -652,7 +642,7 @@ export default function Categories() {
               );
             })}
 
-            {filteredCategories.length === 0 && <EmptyState />}
+            {filteredBrands.length === 0 && <EmptyState />}
 
           </div>
         </>
@@ -668,13 +658,13 @@ export default function Categories() {
 
               <div>
                 <h3 className="text-lg font-extrabold text-gray-900">
-                  {editingCategory ? "Edit Category" : "Add Category"}
+                  {editingBrand ? "Edit Brand" : "Add Brand"}
                 </h3>
 
                 <p className="text-xs text-gray-400 mt-1">
-                  {editingCategory
-                    ? "Update category details."
-                    : "Create a new store category."}
+                  {editingBrand
+                    ? "Update brand details."
+                    : "Create a new brand."}
                 </p>
               </div>
 
@@ -701,7 +691,7 @@ export default function Categories() {
                 {/* Name */}
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Category Name *
+                    Brand Name *
                   </label>
 
                   <input
@@ -709,7 +699,7 @@ export default function Categories() {
                     name="name"
                     value={form.name}
                     onChange={handleFormChange}
-                    placeholder="Enter category name"
+                    placeholder="Enter brand name"
                     className="w-full h-11 px-3 rounded-xl border border-gray-200 outline-none text-sm focus:border-green-400"
                   />
                 </div>
@@ -725,7 +715,7 @@ export default function Categories() {
                     name="slug"
                     value={form.slug}
                     onChange={handleFormChange}
-                    placeholder="category-slug"
+                    placeholder="brand-slug"
                     className="w-full h-11 px-3 rounded-xl border border-gray-200 outline-none text-sm focus:border-green-400"
                   />
 
@@ -733,22 +723,6 @@ export default function Categories() {
                     Auto-filled from the name — edit it directly if you need
                     something different.
                   </p>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Description
-                  </label>
-
-                  <textarea
-                    name="description"
-                    value={form.description}
-                    onChange={handleFormChange}
-                    placeholder="Enter category description"
-                    rows={3}
-                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm resize-none focus:border-green-400"
-                  />
                 </div>
 
                 {/* Status */}
@@ -793,9 +767,9 @@ export default function Categories() {
                 >
                   {saving
                     ? "Saving..."
-                    : editingCategory
-                    ? "Update Category"
-                    : "Create Category"}
+                    : editingBrand
+                    ? "Update Brand"
+                    : "Create Brand"}
                 </button>
 
               </div>
@@ -808,14 +782,14 @@ export default function Categories() {
       )}
 
       {/* View Modal */}
-      {viewModalOpen && selectedCategory && (
+      {viewModalOpen && selectedBrand && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
 
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
 
-            <div className="relative h-40 bg-gray-100 flex items-center justify-center">
+            <div className="relative h-40 bg-green-50 flex items-center justify-center">
 
-              <ImageIcon className="w-10 h-10 text-gray-300" />
+              <Tag className="w-10 h-10 text-green-400" />
 
               <button
                 onClick={() => setViewModalOpen(false)}
@@ -832,31 +806,27 @@ export default function Categories() {
 
                 <div>
                   <h3 className="text-xl font-extrabold text-gray-900">
-                    {selectedCategory.name}
+                    {selectedBrand.name}
                   </h3>
 
                   <p className="text-sm text-gray-400 mt-1">
-                    {selectedCategory.slug}
+                    {selectedBrand.slug}
                   </p>
                 </div>
 
                 <span
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-bold ${
-                    selectedCategory.isActive !== false
+                    selectedBrand.isActive !== false
                       ? "bg-green-50 text-green-700"
                       : "bg-red-50 text-red-600"
                   }`}
                 >
-                  {selectedCategory.isActive !== false
+                  {selectedBrand.isActive !== false
                     ? "active"
                     : "inactive"}
                 </span>
 
               </div>
-
-              <p className="text-sm text-gray-500 mt-5">
-                {selectedCategory.description || "No description available."}
-              </p>
 
               <div className="mt-5 p-4 rounded-xl bg-gray-50 flex items-center justify-between">
 
@@ -865,7 +835,7 @@ export default function Categories() {
                 </span>
 
                 <span className="text-lg font-extrabold text-gray-900">
-                  {productCounts[selectedCategory.id] || 0}
+                  {productCounts[selectedBrand.id] || 0}
                 </span>
 
               </div>
@@ -885,7 +855,7 @@ export default function Categories() {
       )}
 
       {/* Delete Modal */}
-      {deleteModalOpen && selectedCategory && (
+      {deleteModalOpen && selectedBrand && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
 
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 text-center">
@@ -895,13 +865,13 @@ export default function Categories() {
             </div>
 
             <h3 className="text-lg font-extrabold text-gray-900 mt-4">
-              Delete Category?
+              Delete Brand?
             </h3>
 
             <p className="text-sm text-gray-400 mt-2">
               Are you sure you want to delete{" "}
               <span className="font-bold text-gray-700">
-                {selectedCategory.name}
+                {selectedBrand.name}
               </span>
               ?
             </p>
@@ -978,11 +948,11 @@ function EmptyState() {
     <div className="py-14 text-center">
 
       <div className="w-12 h-12 mx-auto rounded-xl bg-gray-50 flex items-center justify-center">
-        <Package className="w-5 h-5 text-gray-400" />
+        <Tag className="w-5 h-5 text-gray-400" />
       </div>
 
       <p className="text-sm font-bold text-gray-700 mt-3">
-        No categories found
+        No brands found
       </p>
 
       <p className="text-xs text-gray-400 mt-1">
