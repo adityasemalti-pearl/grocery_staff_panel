@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import Layout from "../components/Layout";
 import ProductModal from "../components/ProductModal";
+import ProductDetailModal from "../components/Productdetailmodal";
 import AddVariantModal from "../components/AddVariantModal";
 import ReceiveStockModal from "../components/ReceiveStockModal";
 import {
   getCategories,
   getBrands,
   getProducts,
+  getProductById,
   addProductVariant,
   updateProductVariant,
   getVariantInventory,
   receiveStock as receiveStockApi,
+  deleteProduct,
 } from "../api/productApis";
 
 export default function Products() {
@@ -38,6 +41,12 @@ export default function Products() {
   const [productModal, setProductModal] =
     useState(null);
 
+  const [viewModalProduct, setViewModalProduct] =
+    useState(null);
+
+  const [viewLoadingId, setViewLoadingId] =
+    useState(null);
+
   const [variantModal, setVariantModal] =
     useState(null);
 
@@ -54,6 +63,17 @@ export default function Products() {
     useState(false);
 
   const [searchTimer, setSearchTimer] =
+    useState(null);
+
+  // Edit uses a fresh GET /products/:id fetch instead of the cached list row
+  const [editLoadingId, setEditLoadingId] =
+    useState(null);
+
+  // Delete confirmation + in-flight state
+  const [confirmDeleteProduct, setConfirmDeleteProduct] =
+    useState(null);
+
+  const [deletingId, setDeletingId] =
     useState(null);
 
   const showToast = (message) => {
@@ -382,6 +402,76 @@ export default function Products() {
     }
   };
 
+  /*
+   * Edit should always show the true current state of a product (photos,
+   * variants) rather than whatever the bulk products list happened to
+   * return, so we re-fetch the single product by id via GET /products/:id
+   * right before opening the modal.
+   */
+  const openEditModal = async (product) => {
+    try {
+      setEditLoadingId(product.id);
+
+      const response = await getProductById(product.id);
+      const freshProduct = response?.data || response;
+
+      setProductModal({
+        mode: "edit",
+        product: freshProduct || product,
+      });
+    } catch (err) {
+      showToast(
+        err.message || "Failed to load product details"
+      );
+    } finally {
+      setEditLoadingId(null);
+    }
+  };
+
+  /*
+   * View reuses the same "always fetch the true current state" approach
+   * as Edit, via GET /products/:id, so the detail screen never shows
+   * stale photos/variants from the cached list.
+   */
+  const openViewModal = async (product) => {
+    try {
+      setViewLoadingId(product.id);
+
+      const response = await getProductById(product.id);
+      const freshProduct = response?.data || response;
+
+      setViewModalProduct(freshProduct || product);
+    } catch (err) {
+      showToast(
+        err.message || "Failed to load product details"
+      );
+    } finally {
+      setViewLoadingId(null);
+    }
+  };
+
+  const handleDeleteProduct = async (product) => {
+    try {
+      setDeletingId(product.id);
+
+      const response = await deleteProduct(product.id);
+
+      const message =
+        response?.data?.message ||
+        "Product deleted successfully";
+
+      showToast(message);
+      setConfirmDeleteProduct(null);
+      await loadProducts();
+    } catch (err) {
+      showToast(
+        err.message || "Failed to delete product"
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const categoryName = (product) => {
     if (product.category?.name) {
       return product.category.name;
@@ -614,16 +704,49 @@ export default function Products() {
 
                         <button
                           onClick={() =>
-                            setProductModal(
-                              {
-                                mode: "edit",
-                                product,
-                              }
+                            openViewModal(product)
+                          }
+                          disabled={
+                            viewLoadingId ===
+                            product.id
+                          }
+                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340] disabled:opacity-50"
+                        >
+                          {viewLoadingId ===
+                          product.id
+                            ? "Loading..."
+                            : "View"}
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            openEditModal(product)
+                          }
+                          disabled={
+                            editLoadingId ===
+                            product.id
+                          }
+                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340] disabled:opacity-50"
+                        >
+                          {editLoadingId ===
+                          product.id
+                            ? "Loading..."
+                            : "Edit"}
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setConfirmDeleteProduct(
+                              product
                             )
                           }
-                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340]"
+                          disabled={
+                            deletingId ===
+                            product.id
+                          }
+                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold text-[#b3382c] hover:border-[#b3382c] disabled:opacity-50"
                         >
-                          Edit
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -832,6 +955,19 @@ export default function Products() {
         />
       )}
 
+      {viewModalProduct && (
+        <ProductDetailModal
+          product={viewModalProduct}
+          getStockStatus={getStockStatus}
+          onClose={() => setViewModalProduct(null)}
+          onEdit={() => {
+            const product = viewModalProduct;
+            setViewModalProduct(null);
+            openEditModal(product);
+          }}
+        />
+      )}
+
       {variantModal && (
         <AddVariantModal
           productName={
@@ -867,6 +1003,69 @@ export default function Products() {
             )
           }
         />
+      )}
+
+      {confirmDeleteProduct && (
+        <div
+          className="fixed inset-0 bg-[rgba(28,38,32,0.45)] flex items-center justify-center px-4 z-50"
+          onClick={() =>
+            setConfirmDeleteProduct(null)
+          }
+        >
+          <div
+            className="bg-white rounded-[14px] max-w-[380px] w-full p-6"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <h3 className="font-['Baloo_2'] text-lg font-bold mb-2">
+              Delete product?
+            </h3>
+
+            <p className="text-sm text-[#5b6960] mb-5">
+              This will permanently delete{" "}
+              <strong>
+                {confirmDeleteProduct.name}
+              </strong>{" "}
+              and its pack sizes. This can't be undone.
+            </p>
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setConfirmDeleteProduct(null)
+                }
+                disabled={
+                  deletingId ===
+                  confirmDeleteProduct.id
+                }
+                className="flex-1 py-2.5 border border-[#dde3dc] rounded-lg font-semibold disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleDeleteProduct(
+                    confirmDeleteProduct
+                  )
+                }
+                disabled={
+                  deletingId ===
+                  confirmDeleteProduct.id
+                }
+                className="flex-1 py-2.5 bg-[#b3382c] hover:bg-[#8a2a20] text-white rounded-lg font-semibold disabled:opacity-60"
+              >
+                {deletingId ===
+                confirmDeleteProduct.id
+                  ? "Deleting..."
+                  : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (
