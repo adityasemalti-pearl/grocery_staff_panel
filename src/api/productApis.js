@@ -149,7 +149,7 @@ export const receiveStock = async (variantId, stockData) => {
  * product-level photos (product create/update) moved to the multipart
  * /products flow. productId is optional and simply omitted when absent,
  * rather than being sent as the literal string "undefined".
- */
+//  */
 export const uploadProductImage = async (file, productId) => {
   try {
     const formData = new FormData();
@@ -179,5 +179,61 @@ export const getAllOrders = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching orders:", error);
+  }
+};
+
+// --- add to productApis.js ---
+
+export const uploadProductImages = async (productId, files) => {
+  try {
+    const formData = new FormData();
+
+    formData.append("productId", productId);
+
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const response = await api.post(
+      "/uploads/product-images",
+      formData
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Error uploading product images:", error);
+    throw new Error(
+      getErrorMessage(error, "Failed to upload product photos.")
+    );
+  }
+};
+
+export const bulkImportProducts = async (
+  categoryId,
+  brandId,
+  file
+) => {
+  try {
+    const formData = new FormData();
+
+    formData.append("categoryId", categoryId);
+
+    if (brandId) {
+      formData.append("brandId", brandId);
+    }
+
+    formData.append("file", file);
+
+    const response = await api.post(
+      "/products/bulk-import",
+      formData
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Error bulk importing products:", error);
+    throw new Error(
+      getErrorMessage(error, "Failed to bulk import products.")
+    );
   }
 };
