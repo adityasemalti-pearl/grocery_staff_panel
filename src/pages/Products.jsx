@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import Layout from "../components/Layout";
-import ProductModal from "../components/ProductModal";
-import ProductDetailModal from "../components/Productdetailmodal";
-import AddVariantModal from "../components/AddVariantModal";
-import ReceiveStockModal from "../components/ReceiveStockModal";
+import { Search, Plus, Pencil, Trash2, Eye, ImageOff, Package } from "lucide-react";
+import ProductModal from "../components/products/ProductModal";
+import ProductDetailModal from "../components/products/ProductDetailModal";
+import AddVariantModal from "../components/products/AddVariantModal";
+import ReceiveStockModal from "../components/products/ReceiveStockModal";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
+import EmptyState from "../components/ui/EmptyState";
+import Modal from "../components/ui/Modal";
+import { useToast } from "../components/ui/Toast";
 import {
   getCategories,
   getBrands,
@@ -16,115 +22,47 @@ import {
   deleteProduct,
 } from "../api/productApis";
 
+const normalizeList = (response) => {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.items)) return response.items;
+  return [];
+};
+
+const normalizeProducts = (response) => {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.items)) return response.items;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.items)) return response.data.items;
+  return [];
+};
+
 export default function Products() {
-  const [products, setProducts] =
-    useState([]);
+  const showToast = useToast();
 
-  const [categories, setCategories] =
-    useState([]);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [brands, setBrands] =
-    useState([]);
+  const [productModal, setProductModal] = useState(null);
+  const [viewModalProduct, setViewModalProduct] = useState(null);
+  const [viewLoadingId, setViewLoadingId] = useState(null);
+  const [editLoadingId, setEditLoadingId] = useState(null);
+  const [variantModal, setVariantModal] = useState(null);
+  const [stockModal, setStockModal] = useState(null);
+  const [confirmDeleteProduct, setConfirmDeleteProduct] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
-  const [search, setSearch] =
-    useState("");
-
-  const [category, setCategory] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  const [productModal, setProductModal] =
-    useState(null);
-
-  const [viewModalProduct, setViewModalProduct] =
-    useState(null);
-
-  const [viewLoadingId, setViewLoadingId] =
-    useState(null);
-
-  const [variantModal, setVariantModal] =
-    useState(null);
-
-  const [stockModal, setStockModal] =
-    useState(null);
-
-  const [toast, setToast] =
-    useState("");
-
-  const [inventoryByVariant, setInventoryByVariant] =
-    useState({});
-
-  const [inventoryLoading, setInventoryLoading] =
-    useState(false);
-
-  const [searchTimer, setSearchTimer] =
-    useState(null);
-
-  // Edit uses a fresh GET /products/:id fetch instead of the cached list row
-  const [editLoadingId, setEditLoadingId] =
-    useState(null);
-
-  // Delete confirmation + in-flight state
-  const [confirmDeleteProduct, setConfirmDeleteProduct] =
-    useState(null);
-
-  const [deletingId, setDeletingId] =
-    useState(null);
-
-  const showToast = (message) => {
-    setToast(message);
-
-    setTimeout(() => {
-      setToast("");
-    }, 3000);
-  };
-
-  const normalizeCategories = (response) => {
-    if (Array.isArray(response)) {
-      return response;
-    }
-
-    if (Array.isArray(response?.data)) {
-      return response.data;
-    }
-
-    return [];
-  };
-
-  const normalizeProducts = (response) => {
-    if (Array.isArray(response)) {
-      return response;
-    }
-
-    if (Array.isArray(response?.items)) {
-      return response.items;
-    }
-
-    if (Array.isArray(response?.data)) {
-      return response.data;
-    }
-
-    if (Array.isArray(response?.data?.items)) {
-      return response.data.items;
-    }
-
-    return [];
-  };
+  const [inventoryByVariant, setInventoryByVariant] = useState({});
+  const [inventoryLoading, setInventoryLoading] = useState(false);
 
   const loadCategories = async () => {
     try {
-      const response =
-        await getCategories();
-
-      const data =
-        normalizeCategories(response);
-
-      setCategories(data);
+      setCategories(normalizeList(await getCategories()));
     } catch (err) {
       setError(err.message);
     }
@@ -132,12 +70,7 @@ export default function Products() {
 
   const loadBrands = async () => {
     try {
-      const response = await getBrands();
-
-      const data =
-        normalizeCategories(response);
-
-      setBrands(data);
+      setBrands(normalizeList(await getBrands()));
     } catch (err) {
       setError(err.message);
     }
@@ -148,17 +81,8 @@ export default function Products() {
       setLoading(true);
       setError("");
 
-      const response =
-        await getProducts({
-          limit: 100,
-          search,
-          categoryId: category,
-        });
-
-      const data =
-        normalizeProducts(response);
-
-      setProducts(data);
+      const response = await getProducts({ limit: 100, search, categoryId: category });
+      setProducts(normalizeProducts(response));
     } catch (err) {
       setError(err.message);
       setProducts([]);
@@ -167,14 +91,8 @@ export default function Products() {
     }
   };
 
-  const loadInventory = async (
-    productList
-  ) => {
-    const variants =
-      productList.flatMap(
-        (product) =>
-          product.variants || []
-      );
+  const loadInventory = async (productList) => {
+    const variants = productList.flatMap((product) => product.variants || []);
 
     if (!variants.length) {
       setInventoryByVariant({});
@@ -184,35 +102,18 @@ export default function Products() {
     try {
       setInventoryLoading(true);
 
-      const results =
-        await Promise.all(
-          variants.map(async (variant) => {
-            try {
-              const response =
-                await getVariantInventory(
-                  variant.id
-                );
-
-              const inventory =
-                response?.data ||
-                response;
-
-              return [
-                variant.id,
-                inventory,
-              ];
-            } catch {
-              return [
-                variant.id,
-                null,
-              ];
-            }
-          })
-        );
-
-      setInventoryByVariant(
-        Object.fromEntries(results)
+      const results = await Promise.all(
+        variants.map(async (variant) => {
+          try {
+            const response = await getVariantInventory(variant.id);
+            return [variant.id, response?.data || response];
+          } catch {
+            return [variant.id, null];
+          }
+        })
       );
+
+      setInventoryByVariant(Object.fromEntries(results));
     } finally {
       setInventoryLoading(false);
     }
@@ -224,19 +125,8 @@ export default function Products() {
   }, []);
 
   useEffect(() => {
-    if (searchTimer) {
-      clearTimeout(searchTimer);
-    }
-
-    const timer = setTimeout(() => {
-      loadProducts();
-    }, 400);
-
-    setSearchTimer(timer);
-
-    return () => {
-      clearTimeout(timer);
-    };
+    const timer = setTimeout(loadProducts, 400);
+    return () => clearTimeout(timer);
   }, [search, category]);
 
   useEffect(() => {
@@ -244,207 +134,93 @@ export default function Products() {
   }, [products]);
 
   const getStock = (variant) => {
-    const inventory =
-      inventoryByVariant[variant.id];
+    const inventory = inventoryByVariant[variant.id];
 
     if (!inventory) {
-      if (
-        variant.stock !== undefined &&
-        variant.stock !== null
-      ) {
-        return Number(variant.stock);
-      }
-
-      return null;
+      return variant.stock !== undefined && variant.stock !== null ? Number(variant.stock) : null;
     }
 
-    if (
-      inventory.available !== undefined
-    ) {
-      return Number(
-        inventory.available
-      );
-    }
-
-    if (
-      inventory.stock !== undefined
-    ) {
-      return Number(
-        inventory.stock
-      );
-    }
-
-    if (
-      inventory.quantity !== undefined
-    ) {
-      return Number(
-        inventory.quantity
-      );
-    }
+    if (inventory.available !== undefined) return Number(inventory.available);
+    if (inventory.stock !== undefined) return Number(inventory.stock);
+    if (inventory.quantity !== undefined) return Number(inventory.quantity);
 
     return 0;
   };
 
   const getStockStatus = (variant) => {
-    const inventory =
-      inventoryByVariant[variant.id];
-
+    const inventory = inventoryByVariant[variant.id];
     const stock = getStock(variant);
 
     if (inventory && inventory.isSellable === false) {
-      return {
-        text: "Not sellable",
-        className:
-          "bg-[#fbe9e7] text-[#b3382c]",
-      };
+      return { text: "Not sellable", tone: "rose" };
     }
 
     if (stock === null) {
-      return {
-        text: inventoryLoading
-          ? "Loading..."
-          : "No record",
-        className:
-          "bg-[#dde3dc] text-[#5b6960]",
-      };
+      return { text: inventoryLoading ? "Loading..." : "No record", tone: "neutral" };
     }
 
     if (stock <= 0) {
-      return {
-        text: "Out of stock",
-        className:
-          "bg-[#fbe9e7] text-[#b3382c]",
-      };
+      return { text: "Out of stock", tone: "rose" };
     }
 
-    const threshold =
-      inventory?.effectiveLowStockThreshold ??
-      inventory?.lowStockThreshold ??
-      10;
+    const threshold = inventory?.effectiveLowStockThreshold ?? inventory?.lowStockThreshold ?? 10;
 
     if (stock <= threshold) {
-      return {
-        text: `${stock} units`,
-        className:
-          "bg-[#fdf0d5] text-[#8a5a00]",
-      };
+      return { text: `${stock} units`, tone: "amber" };
     }
 
-    return {
-      text: `${stock} units`,
-      className:
-        "bg-[#e4f3e0] text-[#2f7a4f]",
-    };
+    return { text: `${stock} units`, tone: "brand" };
   };
 
-  const handleProductSuccess = async (
-    message
-  ) => {
+  const handleProductSuccess = async (message) => {
     setProductModal(null);
     showToast(message);
     await loadProducts();
   };
 
-  const handleAddVariant = async (
-    productId,
-    variantData
-  ) => {
-    await addProductVariant(
-      productId,
-      variantData
-    );
-
-    showToast(
-      "Pack size added successfully"
-    );
-
+  const handleAddVariant = async (productId, variantData) => {
+    await addProductVariant(productId, variantData);
+    showToast("Pack size added successfully");
     await loadProducts();
   };
 
-  const handleReceiveStock = async (
-    variantId,
-    stockData
-  ) => {
-    await receiveStockApi(
-      variantId,
-      stockData
-    );
-
-    showToast(
-      "Stock added successfully"
-    );
-
+  const handleReceiveStock = async (variantId, stockData) => {
+    await receiveStockApi(variantId, stockData);
+    showToast("Stock added successfully");
     await loadProducts();
   };
 
-  const handleVariantUpdate = async (
-    productId,
-    variantId,
-    data
-  ) => {
+  const handleVariantUpdate = async (productId, variantId, data) => {
     try {
-      await updateProductVariant(
-        productId,
-        variantId,
-        data
-      );
-
-      showToast(
-        "Pack size updated successfully"
-      );
-
+      await updateProductVariant(productId, variantId, data);
+      showToast("Pack size updated successfully");
       await loadProducts();
     } catch (err) {
-      showToast(
-        err.message,
-        true
-      );
+      showToast(err.message, "error");
     }
   };
 
-  /*
-   * Edit should always show the true current state of a product (photos,
-   * variants) rather than whatever the bulk products list happened to
-   * return, so we re-fetch the single product by id via GET /products/:id
-   * right before opening the modal.
-   */
+  // Edit/View always re-fetch GET /products/:id so the modal never shows
+  // stale photos/variants from the bulk list response.
   const openEditModal = async (product) => {
     try {
       setEditLoadingId(product.id);
-
       const response = await getProductById(product.id);
-      const freshProduct = response?.data || response;
-
-      setProductModal({
-        mode: "edit",
-        product: freshProduct || product,
-      });
+      setProductModal({ mode: "edit", product: response?.data || response || product });
     } catch (err) {
-      showToast(
-        err.message || "Failed to load product details"
-      );
+      showToast(err.message || "Failed to load product details", "error");
     } finally {
       setEditLoadingId(null);
     }
   };
 
-  /*
-   * View reuses the same "always fetch the true current state" approach
-   * as Edit, via GET /products/:id, so the detail screen never shows
-   * stale photos/variants from the cached list.
-   */
   const openViewModal = async (product) => {
     try {
       setViewLoadingId(product.id);
-
       const response = await getProductById(product.id);
-      const freshProduct = response?.data || response;
-
-      setViewModalProduct(freshProduct || product);
+      setViewModalProduct(response?.data || response || product);
     } catch (err) {
-      showToast(
-        err.message || "Failed to load product details"
-      );
+      showToast(err.message || "Failed to load product details", "error");
     } finally {
       setViewLoadingId(null);
     }
@@ -453,505 +229,247 @@ export default function Products() {
   const handleDeleteProduct = async (product) => {
     try {
       setDeletingId(product.id);
-
       const response = await deleteProduct(product.id);
-
-      const message =
-        response?.data?.message ||
-        "Product deleted successfully";
-
-      showToast(message);
+      showToast(response?.data?.message || "Product deleted successfully");
       setConfirmDeleteProduct(null);
       await loadProducts();
     } catch (err) {
-      showToast(
-        err.message || "Failed to delete product"
-      );
+      showToast(err.message || "Failed to delete product", "error");
     } finally {
       setDeletingId(null);
     }
   };
 
   const categoryName = (product) => {
-    if (product.category?.name) {
-      return product.category.name;
-    }
-
-    if (product.categoryName) {
-      return product.categoryName;
-    }
-
-    const found =
-      categories.find(
-        (cat) =>
-          String(cat.id) ===
-          String(product.categoryId)
-      );
-
-    return (
-      found?.name ||
-      "Uncategorized"
-    );
+    if (product.category?.name) return product.category.name;
+    if (product.categoryName) return product.categoryName;
+    return categories.find((c) => String(c.id) === String(product.categoryId))?.name || "Uncategorized";
   };
 
   const brandName = (product) => {
-    if (product.brand?.name) {
-      return product.brand.name;
-    }
-
-    if (!product.brandId) {
-      return "";
-    }
-
-    const found = brands.find(
-      (brand) =>
-        String(brand.id) ===
-        String(product.brandId)
-    );
-
-    return found?.name || "";
+    if (product.brand?.name) return product.brand.name;
+    if (!product.brandId) return "";
+    return brands.find((b) => String(b.id) === String(product.brandId))?.name || "";
   };
 
-  const productImage = (product) => {
-    return (
-      product.imageUrl ||
-      product.image ||
-      product.productImage ||
-      (Array.isArray(product.images)
-        ? product.images[0]
-        : "") ||
-      ""
-    );
-  };
+  const productImage = (product) =>
+    product.imageUrl ||
+    product.image ||
+    product.productImage ||
+    (Array.isArray(product.images) ? product.images[0] : "") ||
+    "";
 
-  const productImageCount = (product) => {
-    if (Array.isArray(product.images)) {
-      return product.images.length;
-    }
+  const productImageCount = (product) =>
+    Array.isArray(product.images) ? product.images.length : productImage(product) ? 1 : 0;
 
-    return productImage(product) ? 1 : 0;
-  };
-
-  const filteredProducts = useMemo(() => {
-    return products;
-  }, [products]);
+  const filteredProducts = useMemo(() => products, [products]);
 
   return (
-    <Layout
-      staffName={
-        localStorage.getItem(
-          "staffName"
-        ) || "Staff"
-      }
-    >
-      <main className="max-w-[1180px] mx-auto px-5 py-5">
-        <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
-          <div className="flex gap-2 flex-wrap">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-ink">Products</h2>
+          <p className="text-sm text-ink-soft mt-1">Manage your catalog, pack sizes and stock.</p>
+        </div>
+
+        <Button icon={Plus} onClick={() => setProductModal({ mode: "add" })}>
+          Add product
+        </Button>
+      </div>
+
+      <Card className="p-3.5">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 flex items-center h-11 px-3 rounded-lg bg-paper border border-line focus-within:bg-white focus-within:border-brand-500">
+            <Search className="w-4 h-4 text-ink-faint shrink-0" />
             <input
               type="text"
               placeholder="Search products or scan SKU…"
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-              className="w-[240px] px-3.5 py-2 border border-[#dde3dc] rounded-lg bg-white text-sm outline-none focus:ring-2 focus:ring-[#1b7340]"
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full ml-2 bg-transparent outline-none text-sm text-ink placeholder:text-ink-faint"
             />
-
-            <select
-              value={category}
-              onChange={(e) =>
-                setCategory(e.target.value)
-              }
-              className="w-[200px] px-3.5 py-2 border border-[#dde3dc] rounded-lg bg-white text-sm outline-none"
-            >
-              <option value="">
-                All categories
-              </option>
-
-              {categories.map((cat) => (
-                <option
-                  key={cat.id}
-                  value={cat.id}
-                >
-                  {cat.name}
-                </option>
-              ))}
-            </select>
           </div>
 
-          <button
-            onClick={() =>
-              setProductModal({
-                mode: "add",
-              })
-            }
-            className="bg-[#1b7340] hover:bg-[#124d2a] text-white rounded-lg px-[18px] py-2.5 font-semibold text-sm"
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="h-11 px-3 rounded-lg border border-line bg-white text-sm font-medium text-ink-soft outline-none focus:border-brand-500 md:w-[220px]"
           >
-            + Add Product
-          </button>
+            <option value="">All categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
         </div>
+      </Card>
 
-        {error && (
-          <div className="bg-[#fbe9e7] text-[#b3382c] px-4 py-3 rounded-lg text-sm mb-4">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="bg-rose-50 text-rose-500 px-4 py-3 rounded-lg text-sm font-medium">{error}</div>
+      )}
 
-        {loading ? (
-          <div className="bg-white border border-[#dde3dc] rounded-xl p-10 text-center text-[#5b6960]">
-            Loading products...
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {filteredProducts.map(
-              (product) => {
-                const image =
-                  productImage(
-                    product
-                  );
+      {loading ? (
+        <Card className="p-14 text-center text-sm text-ink-soft">Loading products...</Card>
+      ) : filteredProducts.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Package}
+            title="No products yet"
+            description="Add your first product or adjust your search and category filter."
+            action={<Button icon={Plus} onClick={() => setProductModal({ mode: "add" })}>Add product</Button>}
+          />
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filteredProducts.map((product) => {
+            const image = productImage(product);
+            const imageCount = productImageCount(product);
+            const active = product.isActive !== undefined ? product.isActive : product.active !== undefined ? product.active : true;
 
-                const imageCount =
-                  productImageCount(
-                    product
-                  );
+            return (
+              <Card key={product.id} className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                  <div className="flex gap-3 min-w-0">
+                    <div className="relative w-14 h-14 shrink-0 rounded-lg bg-paper border border-line flex items-center justify-center overflow-hidden">
+                      {image ? (
+                        <img src={image} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageOff className="w-4 h-4 text-ink-faint" />
+                      )}
 
-                const active =
-                  product.isActive !==
-                  undefined
-                    ? product.isActive
-                    : product.active !==
-                      undefined
-                    ? product.active
-                    : true;
-
-                return (
-                  <div
-                    key={product.id}
-                    className="bg-white border border-[#dde3dc] rounded-xl p-4"
-                  >
-                    <div className="flex justify-between items-start gap-3 mb-2.5">
-                      <div className="flex gap-3">
-                        <div className="relative w-14 h-14 rounded-lg bg-[#f7f8f4] border border-[#dde3dc] flex items-center justify-center overflow-hidden">
-                          {image ? (
-                            <img
-                              src={image}
-                              alt={
-                                product.name
-                              }
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-[10px] text-[#5b6960]">
-                              No photo
-                            </span>
-                          )}
-
-                          {imageCount > 1 && (
-                            <span className="absolute bottom-0 right-0 bg-[#1b1f1c]/75 text-white text-[9px] font-bold px-1 rounded-tl-md">
-                              +{imageCount - 1}
-                            </span>
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="font-bold text-base">
-                            {
-                              product.name
-                            }
-                          </div>
-
-                          <div className="text-[#5b6960] text-[13px] mt-0.5">
-                            {brandName(product) && (
-                              <>
-                                {brandName(product)}
-                                {" · "}
-                              </>
-                            )}
-                            {categoryName(
-                              product
-                            )}{" "}
-                            ·{" "}
-                            {
-                              (
-                                product.variants ||
-                                []
-                              ).length
-                            }{" "}
-                            pack size
-                            {(
-                              product.variants ||
-                              []
-                            ).length !==
-                            1
-                              ? "s"
-                              : ""}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            active
-                              ? "bg-[#e4f3e0] text-[#2f7a4f]"
-                              : "bg-[#dde3dc] text-[#5b6960]"
-                          }`}
-                        >
-                          {active
-                            ? "Active"
-                            : "Inactive"}
+                      {imageCount > 1 && (
+                        <span className="absolute bottom-0 right-0 bg-ink/75 text-white text-[9px] font-bold px-1 rounded-tl-md">
+                          +{imageCount - 1}
                         </span>
+                      )}
+                    </div>
 
-                        <button
-                          onClick={() =>
-                            openViewModal(product)
-                          }
-                          disabled={
-                            viewLoadingId ===
-                            product.id
-                          }
-                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340] disabled:opacity-50"
-                        >
-                          {viewLoadingId ===
-                          product.id
-                            ? "Loading..."
-                            : "View"}
-                        </button>
-
-                        <button
-                          onClick={() =>
-                            openEditModal(product)
-                          }
-                          disabled={
-                            editLoadingId ===
-                            product.id
-                          }
-                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340] disabled:opacity-50"
-                        >
-                          {editLoadingId ===
-                          product.id
-                            ? "Loading..."
-                            : "Edit"}
-                        </button>
-
-                        <button
-                          onClick={() =>
-                            setConfirmDeleteProduct(
-                              product
-                            )
-                          }
-                          disabled={
-                            deletingId ===
-                            product.id
-                          }
-                          className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold text-[#b3382c] hover:border-[#b3382c] disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
+                    <div className="min-w-0">
+                      <div className="font-bold text-base text-ink truncate">{product.name}</div>
+                      <div className="text-ink-soft text-[13px] mt-0.5 truncate">
+                        {brandName(product) && `${brandName(product)} · `}
+                        {categoryName(product)} · {(product.variants || []).length} pack size
+                        {(product.variants || []).length !== 1 ? "s" : ""}
                       </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr>
-                            {[
-                              "SKU",
-                              "Pack",
-                              "MRP",
-                              "Price",
-                              "Stock",
-                              "",
-                            ].map(
-                              (
-                                heading,
-                                index
-                              ) => (
-                                <th
-                                  key={`${heading}-${index}`}
-                                  className="text-left text-[11px] uppercase tracking-wider text-[#5b6960] p-2 border-b border-[#dde3dc]"
-                                >
-                                  {
-                                    heading
-                                  }
-                                </th>
-                              )
-                            )}
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {(
-                            product.variants ||
-                            []
-                          ).map(
-                            (variant) => {
-                              const stockStatus =
-                                getStockStatus(
-                                  variant
-                                );
-
-                              const variantActive =
-                                variant.isActive !==
-                                undefined
-                                  ? variant.isActive
-                                  : true;
-
-                              return (
-                                <tr
-                                  key={
-                                    variant.id
-                                  }
-                                >
-                                  <td className="p-2 border-b border-[#dde3dc] text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <span>
-                                        {
-                                          variant.sku
-                                        }
-                                      </span>
-
-                                      {!variantActive && (
-                                        <span className="px-2 py-0.5 rounded-full bg-[#dde3dc] text-[#5b6960] text-[10px] font-semibold">
-                                          Inactive
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-
-                                  <td className="p-2 border-b border-[#dde3dc] text-sm">
-                                    {
-                                      variant.weight
-                                    }{" "}
-                                    {
-                                      variant.unit
-                                    }
-                                  </td>
-
-                                  <td className="p-2 border-b border-[#dde3dc] text-sm">
-                                    ₹
-                                    {Number(
-                                      variant.mrp
-                                    ).toFixed(
-                                      2
-                                    )}
-                                  </td>
-
-                                  <td className="p-2 border-b border-[#dde3dc] text-sm font-semibold">
-                                    ₹
-                                    {Number(
-                                      variant.sellingPrice ??
-                                        variant.price
-                                    ).toFixed(
-                                      2
-                                    )}
-                                  </td>
-
-                                  <td className="p-2 border-b border-[#dde3dc] text-sm">
-                                    <span
-                                      className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${stockStatus.className}`}
-                                    >
-                                      {
-                                        stockStatus.text
-                                      }
-                                    </span>
-                                  </td>
-
-                                  <td className="p-2 border-b border-[#dde3dc]">
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() =>
-                                          setStockModal(
-                                            {
-                                              productId:
-                                                product.id,
-                                              variant,
-                                              productName:
-                                                product.name,
-                                            }
-                                          )
-                                        }
-                                        className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340]"
-                                      >
-                                        + Stock
-                                      </button>
-
-                                      <button
-                                        onClick={() =>
-                                          handleVariantUpdate(
-                                            product.id,
-                                            variant.id,
-                                            {
-                                              isActive:
-                                                !variantActive,
-                                            }
-                                          )
-                                        }
-                                        className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340]"
-                                      >
-                                        {variantActive
-                                          ? "Deactivate"
-                                          : "Activate"}
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            }
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() =>
-                          setVariantModal(
-                            {
-                              productId:
-                                product.id,
-                              productName:
-                                product.name,
-                            }
-                          )
-                        }
-                        className="px-3 py-1.5 border border-[#dde3dc] rounded-lg text-xs font-semibold hover:border-[#1b7340] hover:text-[#1b7340]"
-                      >
-                        + Add pack size
-                      </button>
                     </div>
                   </div>
-                );
-              }
-            )}
-          </div>
-        )}
 
-        {!loading &&
-          filteredProducts.length ===
-            0 && (
-            <div className="text-center text-[#5b6960] py-16">
-              No products found.
-            </div>
-          )}
-      </main>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge tone={active ? "brand" : "neutral"}>{active ? "Active" : "Inactive"}</Badge>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Eye}
+                      loading={viewLoadingId === product.id}
+                      onClick={() => openViewModal(product)}
+                    >
+                      View
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Pencil}
+                      loading={editLoadingId === product.id}
+                      onClick={() => openEditModal(product)}
+                    >
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="dangerGhost"
+                      size="sm"
+                      icon={Trash2}
+                      loading={deletingId === product.id}
+                      onClick={() => setConfirmDeleteProduct(product)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse min-w-[560px]">
+                    <thead>
+                      <tr>
+                        {["SKU", "Pack", "MRP", "Price", "Stock", ""].map((heading) => (
+                          <th key={heading} className="text-left text-[11px] uppercase tracking-wide text-ink-faint p-2 border-b border-line">
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {(product.variants || []).map((variant) => {
+                        const stockStatus = getStockStatus(variant);
+                        const variantActive = variant.isActive !== undefined ? variant.isActive : true;
+
+                        return (
+                          <tr key={variant.id}>
+                            <td className="p-2 border-b border-line text-sm">
+                              <div className="flex items-center gap-2">
+                                <span>{variant.sku}</span>
+                                {!variantActive && <Badge tone="neutral">Inactive</Badge>}
+                              </div>
+                            </td>
+                            <td className="p-2 border-b border-line text-sm">{variant.weight} {variant.unit}</td>
+                            <td className="p-2 border-b border-line text-sm">₹{Number(variant.mrp).toFixed(2)}</td>
+                            <td className="p-2 border-b border-line text-sm font-semibold">
+                              ₹{Number(variant.sellingPrice ?? variant.price).toFixed(2)}
+                            </td>
+                            <td className="p-2 border-b border-line text-sm">
+                              <Badge tone={stockStatus.tone}>{stockStatus.text}</Badge>
+                            </td>
+                            <td className="p-2 border-b border-line">
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setStockModal({ productId: product.id, variant, productName: product.name })}
+                                >
+                                  + Stock
+                                </Button>
+
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleVariantUpdate(product.id, variant.id, { isActive: !variantActive })}
+                                >
+                                  {variantActive ? "Deactivate" : "Activate"}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Plus}
+                    onClick={() => setVariantModal({ productId: product.id, productName: product.name })}
+                  >
+                    Add pack size
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {productModal && (
         <ProductModal
           categories={categories}
           brands={brands}
-          product={
-            productModal.mode ===
-            "edit"
-              ? productModal.product
-              : null
-          }
-          onClose={() =>
-            setProductModal(null)
-          }
-          onSuccess={
-            handleProductSuccess
-          }
+          product={productModal.mode === "edit" ? productModal.product : null}
+          onClose={() => setProductModal(null)}
+          onSuccess={handleProductSuccess}
         />
       )}
 
@@ -970,109 +488,51 @@ export default function Products() {
 
       {variantModal && (
         <AddVariantModal
-          productName={
-            variantModal.productName
-          }
-          onClose={() =>
-            setVariantModal(null)
-          }
-          onSave={(data) =>
-            handleAddVariant(
-              variantModal.productId,
-              data
-            )
-          }
+          productName={variantModal.productName}
+          onClose={() => setVariantModal(null)}
+          onSave={(data) => handleAddVariant(variantModal.productId, data)}
         />
       )}
 
       {stockModal && (
         <ReceiveStockModal
-          productName={
-            stockModal.productName
-          }
-          variant={
-            stockModal.variant
-          }
-          onClose={() =>
-            setStockModal(null)
-          }
-          onSave={(data) =>
-            handleReceiveStock(
-              stockModal.variant.id,
-              data
-            )
-          }
+          productName={stockModal.productName}
+          variant={stockModal.variant}
+          onClose={() => setStockModal(null)}
+          onSave={(data) => handleReceiveStock(stockModal.variant.id, data)}
         />
       )}
 
       {confirmDeleteProduct && (
-        <div
-          className="fixed inset-0 bg-[rgba(28,38,32,0.45)] flex items-center justify-center px-4 z-50"
-          onClick={() =>
-            setConfirmDeleteProduct(null)
-          }
-        >
-          <div
-            className="bg-white rounded-[14px] max-w-[380px] w-full p-6"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
-          >
-            <h3 className="font-['Baloo_2'] text-lg font-bold mb-2">
-              Delete product?
-            </h3>
-
-            <p className="text-sm text-[#5b6960] mb-5">
-              This will permanently delete{" "}
-              <strong>
-                {confirmDeleteProduct.name}
-              </strong>{" "}
-              and its pack sizes. This can't be undone.
-            </p>
-
-            <div className="flex gap-2.5">
-              <button
-                type="button"
-                onClick={() =>
-                  setConfirmDeleteProduct(null)
-                }
-                disabled={
-                  deletingId ===
-                  confirmDeleteProduct.id
-                }
-                className="flex-1 py-2.5 border border-[#dde3dc] rounded-lg font-semibold disabled:opacity-50"
+        <Modal
+          title="Delete product?"
+          onClose={() => setConfirmDeleteProduct(null)}
+          width="sm"
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setConfirmDeleteProduct(null)}
+                disabled={deletingId === confirmDeleteProduct.id}
               >
                 Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleDeleteProduct(
-                    confirmDeleteProduct
-                  )
-                }
-                disabled={
-                  deletingId ===
-                  confirmDeleteProduct.id
-                }
-                className="flex-1 py-2.5 bg-[#b3382c] hover:bg-[#8a2a20] text-white rounded-lg font-semibold disabled:opacity-60"
+              </Button>
+              <Button
+                variant="danger"
+                loading={deletingId === confirmDeleteProduct.id}
+                onClick={() => handleDeleteProduct(confirmDeleteProduct)}
               >
-                {deletingId ===
-                confirmDeleteProduct.id
-                  ? "Deleting..."
-                  : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+                Delete
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-ink-soft">
+            This will permanently delete <strong className="text-ink">{confirmDeleteProduct.name}</strong> and
+            its pack sizes. This can't be undone.
+          </p>
+        </Modal>
       )}
-
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[#1b1f1c] text-white px-5 py-3 rounded-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
-    </Layout>
+    </div>
   );
 }

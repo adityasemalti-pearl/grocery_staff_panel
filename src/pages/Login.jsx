@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { staffLogin } from "../api/authApis";
 import { saveSession } from "../utils/auth";
+import Button from "../components/ui/Button";
+import { Field, Input } from "../components/ui/Field";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -21,13 +23,17 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const clearErrorOnChange = (setter) => (e) => {
+    setter(e.target.value);
+    if (error) setError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
 
     if (!username.trim() || !password.trim()) {
-      setError("Please enter username and password.");
+      setError("Enter your username and password to continue.");
       return;
     }
 
@@ -39,31 +45,19 @@ export default function Login() {
         password,
       });
 
-      console.log("Staff login response:", response);
-
       if (!response?.success || !response?.data?.accessToken) {
-        throw new Error(
-          response?.message || "Login failed. Please try again."
-        );
+        throw new Error(response?.message || "Login failed. Please try again.");
       }
 
-      const { accessToken, staff } = response.data;
-
       saveSession({
-        accessToken,
-        staff,
+        accessToken: response.data.accessToken,
+        staff: response.data.staff,
       });
 
-      console.log("Staff session saved successfully");
-
-      navigate("/orders", { replace: true });
-    } catch (error) {
-      console.error("Staff login error:", error);
-
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
       const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Unable to login. Please try again.";
+        err?.response?.data?.message || err?.message || "Unable to sign in. Please try again.";
 
       setError(Array.isArray(message) ? message.join(", ") : message);
     } finally {
@@ -72,314 +66,153 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f8f5] flex items-center justify-center p-4 sm:p-6">
-
-      <div className="w-full max-w-[1050px] min-h-[620px] bg-white rounded-[28px] overflow-hidden shadow-[0_20px_70px_rgba(25,60,35,0.10)] border border-gray-100 grid lg:grid-cols-2">
-
-        {/* ================= LEFT BRAND PANEL ================= */}
-        <div className="hidden lg:flex relative bg-[#145c35] p-12 flex-col justify-between overflow-hidden">
-
-          {/* Background decoration */}
-          <div className="absolute -top-28 -right-28 w-80 h-80 rounded-full bg-green-400/10" />
+    <div className="min-h-screen bg-paper flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-[1050px] min-h-[600px] bg-card rounded-2xl overflow-hidden shadow-float border border-line grid lg:grid-cols-2">
+        {/* Brand panel — desktop only */}
+        <div className="hidden lg:flex relative bg-brand-800 p-12 flex-col justify-between overflow-hidden">
+          <div className="absolute -top-28 -right-28 w-80 h-80 rounded-full bg-brand-500/10" />
           <div className="absolute -bottom-32 -left-24 w-96 h-96 rounded-full bg-black/10" />
-          <div className="absolute top-1/2 right-[-80px] w-52 h-52 rounded-full border-[35px] border-white/5" />
 
-          {/* Brand */}
-          <div className="relative z-10">
-
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shadow-lg">
-                <ShoppingBag className="w-5 h-5 text-[#145c35]" />
-              </div>
-
-              <div>
-                <h2 className="text-white text-lg font-extrabold">
-                  CD Shopping Hub
-                </h2>
-
-                <p className="text-green-100/70 text-[10px] font-medium">
-                  ADMIN PANEL
-                </p>
-              </div>
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-brand-800" />
             </div>
-
+            <div>
+              <h2 className="text-white text-lg font-extrabold">CD Shopping Hub</h2>
+              <p className="text-brand-100/70 text-[10px] font-bold uppercase tracking-wider">
+                Admin Panel
+              </p>
+            </div>
           </div>
 
-          {/* Center Content */}
           <div className="relative z-10">
-
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-green-50 text-xs font-semibold mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-brand-50 text-xs font-semibold mb-6">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Secure Admin Access
+              Secure admin access
             </div>
 
             <h1 className="text-white text-4xl xl:text-5xl font-extrabold leading-tight">
               Manage your store.
               <br />
-              <span className="text-green-200">
-                Grow your business.
-              </span>
+              <span className="text-brand-200">Grow your business.</span>
             </h1>
 
-            <p className="text-green-50/70 text-sm leading-6 mt-5 max-w-[400px]">
-              Manage products, orders, customers and your entire
-              shopping operation from one powerful dashboard.
+            <p className="text-brand-50/70 text-sm leading-6 mt-5 max-w-[380px]">
+              Manage products, orders, customers and your entire shopping
+              operation from one dashboard.
             </p>
 
-            {/* Features */}
             <div className="mt-8 space-y-4">
-
-              <Feature
-                icon={<ShoppingBag className="w-4 h-4" />}
-                title="Manage Orders"
-                text="Track and manage customer orders"
-              />
-
-              <Feature
-                icon={<BarChart3 className="w-4 h-4" />}
-                title="Store Analytics"
-                text="Monitor your store performance"
-              />
-
-              <Feature
-                icon={<LockKeyhole className="w-4 h-4" />}
-                title="Secure Dashboard"
-                text="Protected access for store staff"
-              />
-
+              <Feature icon={ShoppingBag} title="Manage orders" text="Track and fulfill customer orders" />
+              <Feature icon={BarChart3} title="Store analytics" text="Monitor how your store is performing" />
+              <Feature icon={LockKeyhole} title="Secure dashboard" text="Protected access for store staff" />
             </div>
-
           </div>
 
-          {/* Footer */}
-          <p className="relative z-10 text-[11px] text-green-100/50">
+          <p className="relative z-10 text-[11px] text-brand-50/50">
             © 2026 CD Shopping Hub. All rights reserved.
           </p>
-
         </div>
 
-        {/* ================= RIGHT LOGIN ================= */}
+        {/* Form */}
         <div className="flex items-center justify-center p-6 sm:p-10 lg:p-12">
-
-          <div className="w-full max-w-[390px]">
-
-            {/* Mobile Brand */}
-            <div className="lg:hidden flex items-center gap-3 mb-10">
-
-              <div className="w-11 h-11 rounded-xl bg-[#145c35] flex items-center justify-center">
+          <div className="w-full max-w-[380px]">
+            <div className="lg:hidden flex items-center gap-3 mb-8">
+              <div className="w-11 h-11 rounded-xl bg-brand-700 flex items-center justify-center">
                 <ShoppingBag className="w-5 h-5 text-white" />
               </div>
-
               <div>
-                <h2 className="text-base font-extrabold text-gray-900">
-                  CD Shopping Hub
-                </h2>
-
-                <p className="text-[10px] text-gray-400 font-semibold">
-                  ADMIN PANEL
+                <h2 className="text-base font-extrabold text-ink">CD Shopping Hub</h2>
+                <p className="text-[10px] text-ink-faint font-bold uppercase tracking-wider">
+                  Admin Panel
                 </p>
               </div>
-
             </div>
 
-            {/* Heading */}
-            <div className="mb-8">
-
-              <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-5">
-                <LockKeyhole className="w-5 h-5 text-[#145c35]" />
-              </div>
-
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
-                Welcome back
-              </h1>
-
-              <p className="text-sm text-gray-400 mt-2">
-                Sign in to access your admin dashboard.
-              </p>
-
+            <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center mb-5">
+              <LockKeyhole className="w-5 h-5 text-brand-700" />
             </div>
 
-            {/* Error */}
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-ink">Welcome back</h1>
+            <p className="text-sm text-ink-soft mt-2 mb-7">
+              Sign in to access your admin dashboard.
+            </p>
+
             {error && (
-              <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-semibold">
+              <div className="mb-5 px-4 py-3 rounded-lg bg-rose-50 border border-rose-500/20 text-rose-500 text-xs font-semibold">
                 {error}
               </div>
             )}
 
-            <form
-              onSubmit={handleSubmit}
-              autoComplete="off"
-              spellCheck={false}
-            >
-
-              {/* Fake autofill fields */}
-              <input
-                type="text"
-                name="fake_username"
-                autoComplete="username"
-                tabIndex={-1}
-                aria-hidden="true"
-                className="absolute -left-[9999px] opacity-0 pointer-events-none"
-              />
-
-              <input
-                type="password"
-                name="fake_password"
-                autoComplete="current-password"
-                tabIndex={-1}
-                aria-hidden="true"
-                className="absolute -left-[9999px] opacity-0 pointer-events-none"
-              />
-
-              {/* Username */}
-              <div className="mb-5">
-
-                <label
-                  htmlFor="staff-login-username"
-                  className="block text-xs font-bold text-gray-700 mb-2"
-                >
-                  Username
-                </label>
-
-                <input
-                  id="staff-login-username"
-                  type="text"
-                  name="staff_login_username"
+            <form onSubmit={handleSubmit} autoComplete="off" spellCheck={false}>
+              <Field label="Username">
+                <Input
                   autoComplete="off"
                   value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-
-                    if (error) {
-                      setError("");
-                    }
-                  }}
+                  onChange={clearErrorOnChange(setUsername)}
                   disabled={loading}
                   placeholder="Enter your username"
-                  className="w-full h-12 px-4 rounded-xl border border-gray-200 bg-gray-50/70 text-sm text-gray-800 outline-none transition focus:bg-white focus:border-[#145c35] focus:ring-4 focus:ring-green-50 disabled:opacity-60 disabled:cursor-not-allowed"
                 />
+              </Field>
 
-              </div>
-
-              {/* Password */}
-              <div className="mb-6">
-
-                <div className="flex items-center justify-between mb-2">
-
-                  <label
-                    htmlFor="staff-login-password"
-                    className="text-xs font-bold text-gray-700"
-                  >
-                    Password
-                  </label>
-
-                </div>
-
+              <Field label="Password">
                 <div className="relative">
-
-                  <input
-                    id="staff-login-password"
+                  <Input
                     type={showPassword ? "text" : "password"}
-                    name="staff_login_password"
                     autoComplete="new-password"
                     value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-
-                      if (error) {
-                        setError("");
-                      }
-                    }}
+                    onChange={clearErrorOnChange(setPassword)}
                     disabled={loading}
                     placeholder="Enter your password"
-                    className="w-full h-12 px-4 pr-12 rounded-xl border border-gray-200 bg-gray-50/70 text-sm text-gray-800 outline-none transition focus:bg-white focus:border-[#145c35] focus:ring-4 focus:ring-green-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="pr-11"
                   />
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowPassword((prev) => !prev)
-                    }
+                    onClick={() => setShowPassword((prev) => !prev)}
                     disabled={loading}
-                    aria-label={
-                      showPassword
-                        ? "Hide password"
-                        : "Show password"
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#145c35] hover:bg-green-50 transition disabled:opacity-50"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center text-ink-faint hover:text-brand-700 hover:bg-brand-50 transition disabled:opacity-50"
                   >
-                    {showPassword ? (
-                      <EyeOff className="w-[18px] h-[18px]" />
-                    ) : (
-                      <Eye className="w-[18px] h-[18px]" />
-                    )}
+                    {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
                   </button>
-
                 </div>
+              </Field>
 
-              </div>
-
-              {/* Login Button */}
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className="group w-full h-12 rounded-xl bg-[#145c35] hover:bg-[#0f4929] text-white text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-[0_8px_20px_rgba(20,92,53,0.18)] hover:shadow-[0_10px_25px_rgba(20,92,53,0.25)] disabled:opacity-60 disabled:cursor-not-allowed"
+                loading={loading}
+                icon={loading ? undefined : ArrowRight}
+                className="w-full mt-2"
+                size="lg"
               >
-                {loading ? (
-                  <>
-                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign in
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </button>
-
+                {loading ? "Signing in..." : "Sign in"}
+              </Button>
             </form>
 
-            {/* Bottom */}
             <div className="flex items-center justify-center gap-2 mt-8">
-
-              <ShieldCheck className="w-3.5 h-3.5 text-green-600" />
-
-              <p className="text-[11px] text-gray-400">
+              <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+              <p className="text-[11px] text-ink-faint">
                 Your account is protected with secure authentication
               </p>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }
 
-/* Feature Item */
-function Feature({ icon, title, text }) {
+function Feature({ icon: Icon, title, text }) {
   return (
     <div className="flex items-center gap-3">
-
-      <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-green-100">
-        {icon}
+      <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-brand-100">
+        <Icon className="w-4 h-4" />
       </div>
-
       <div>
-        <p className="text-xs font-bold text-white">
-          {title}
-        </p>
-
-        <p className="text-[10px] text-green-100/50 mt-0.5">
-          {text}
-        </p>
+        <p className="text-xs font-bold text-white">{title}</p>
+        <p className="text-[10px] text-brand-50/50 mt-0.5">{text}</p>
       </div>
-
     </div>
   );
 }

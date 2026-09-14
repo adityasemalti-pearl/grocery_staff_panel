@@ -1,6 +1,12 @@
 import { useState } from "react";
-import Layout from "../components/Layout";
-import OrderDetailsModal from "../components/OrderDetailsModal";
+import { RefreshCw } from "lucide-react";
+import OrderDetailsModal from "../components/orders/OrderDetailsModal";
+import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
+import { Card } from "../components/ui/Card";
+import EmptyState from "../components/ui/EmptyState";
+import { useToast } from "../components/ui/Toast";
+import { ShoppingBag } from "lucide-react";
 
 const ordersData = [
   {
@@ -77,9 +83,9 @@ const ordersData = [
   },
 ];
 
-const statuses = [
+const STATUSES = [
   ["", "All"],
-  ["PENDING_PAYMENT", "Pending Payment"],
+  ["PENDING_PAYMENT", "Pending payment"],
   ["CONFIRMED", "Confirmed"],
   ["PACKED", "Packed"],
   ["READY", "Ready"],
@@ -87,96 +93,76 @@ const statuses = [
   ["CANCELLED", "Cancelled"],
 ];
 
-const statusStyle = {
-  PENDING_PAYMENT: "bg-[#fdf0d5] text-[#8a5a00]",
-  CONFIRMED: "bg-[#e1ecfb] text-[#1c4c8c]",
-  PACKED: "bg-[#ede3fb] text-[#5b2a9c]",
-  READY: "bg-[#dcf3ee] text-[#0f6b58]",
-  COMPLETED: "bg-[#e4f3e0] text-[#2f7a4f]",
-  CANCELLED: "bg-[#f5e4e2] text-[#a33a2a]",
+const STATUS_TONE = {
+  PENDING_PAYMENT: "amber",
+  CONFIRMED: "sky",
+  PACKED: "violet",
+  READY: "teal",
+  COMPLETED: "brand",
+  CANCELLED: "rose",
 };
 
 export default function Orders() {
+  const showToast = useToast();
   const [filter, setFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [toast, setToast] = useState("");
 
-  const orders = filter
-    ? ordersData.filter((order) => order.status === filter)
-    : ordersData;
-
-  const refresh = () => {
-    setToast("Orders refreshed");
-    setTimeout(() => setToast(""), 2000);
-  };
+  const orders = filter ? ordersData.filter((o) => o.status === filter) : ordersData;
 
   return (
-    <Layout staffName={localStorage.getItem("staffName") || "Staff"}>
-      <main className="max-w-[1180px] mx-auto px-5 py-5">
-
-        <div className="flex justify-between items-center flex-wrap gap-3 mb-4">
-          <div className="flex gap-2 flex-wrap">
-            {statuses.map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => setFilter(value)}
-                className={`px-4 py-2 rounded-full text-sm border transition ${
-                  filter === value
-                    ? "bg-[#1b1f1c] text-white border-[#1b1f1c]"
-                    : "bg-white text-[#5b6960] border-[#dde3dc] hover:border-[#1b7340]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={refresh}
-            className="bg-white border border-[#dde3dc] rounded-lg px-4 py-2 text-sm hover:border-[#1b7340]"
-          >
-            Refresh
-          </button>
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-ink">Orders</h2>
+          <p className="text-sm text-ink-soft mt-1">Track and fulfill customer orders.</p>
         </div>
 
+        <Button variant="secondary" icon={RefreshCw} onClick={() => showToast("Orders refreshed")}>
+          Refresh
+        </Button>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        {STATUSES.map(([value, label]) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={filter === value ? "primary" : "secondary"}
+            onClick={() => setFilter(value)}
+            className="rounded-full"
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+
+      {orders.length === 0 ? (
+        <Card>
+          <EmptyState icon={ShoppingBag} title="No orders here yet" description="Orders matching this filter will show up here." />
+        </Card>
+      ) : (
         <div className="flex flex-col gap-2.5">
           {orders.map((order) => (
-            <div
+            <Card
               key={order.id}
               onClick={() => setSelectedOrder(order)}
-              className="bg-white border border-[#dde3dc] rounded-xl p-4 flex justify-between items-center gap-3 flex-wrap cursor-pointer hover:border-[#1b7340] hover:shadow-[0_2px_10px_rgba(27,115,64,0.08)] transition"
+              className="p-4 flex justify-between items-center gap-3 flex-wrap cursor-pointer hover:border-brand-500 transition-colors"
             >
               <div className="min-w-0">
-                <div className="font-['Baloo_2'] font-bold text-[17px]">
-                  {order.number}
-                </div>
-
-                <div className="text-[#5b6960] text-[13px] mt-0.5">
+                <div className="font-extrabold text-[17px] text-ink">{order.number}</div>
+                <div className="text-ink-soft text-[13px] mt-0.5">
                   {order.customer} · {order.items} items · {order.date}
                 </div>
               </div>
 
               <div className="flex items-center gap-3.5">
-                <div className="font-['Baloo_2'] font-bold text-base">
-                  ₹{order.amount.toLocaleString()}
-                </div>
-
-                <span
-                  className={`inline-block px-3.5 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap ${statusStyle[order.status]}`}
-                >
-                  {order.status.replace("_", " ")}
-                </span>
+                <div className="font-extrabold text-base text-ink">₹{order.amount.toLocaleString()}</div>
+                <Badge tone={STATUS_TONE[order.status]}>{order.status.replace("_", " ")}</Badge>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
-
-        {orders.length === 0 && (
-          <div className="text-center text-[#5b6960] py-16">
-            No orders here yet.
-          </div>
-        )}
-      </main>
+      )}
 
       {selectedOrder && (
         <OrderDetailsModal
@@ -184,17 +170,10 @@ export default function Orders() {
           onClose={() => setSelectedOrder(null)}
           onAction={(message) => {
             setSelectedOrder(null);
-            setToast(message);
-            setTimeout(() => setToast(""), 2000);
+            showToast(message);
           }}
         />
       )}
-
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[#1b1f1c] text-white px-5 py-3 rounded-lg text-sm z-50">
-          {toast}
-        </div>
-      )}
-    </Layout>
+    </div>
   );
 }

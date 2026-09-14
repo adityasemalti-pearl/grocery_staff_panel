@@ -1,36 +1,72 @@
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Karla:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
-:root {
-  --ink: #1b1f1c;
-  --ink-soft: #5b6960;
-  --paper: #f7f8f4;
-  --card: #ffffff;
-  --line: #dde3dc;
-  --accent: #1b7340;
-  --accent-dark: #124d2a;
-  --danger: #b3382c;
-  --danger-soft: #fbe9e7;
+/*
+ * Design tokens — single source of truth for color, type, radius, shadow.
+ * Every component should reach for these Tailwind utilities (bg-brand-600,
+ * text-ink, font-sans, rounded-xl, shadow-float...) instead of one-off
+ * arbitrary values like bg-[#1b7340] or rounded-[14px].
+ */
+@theme {
+  --font-sans: "Karla", ui-sans-serif, system-ui, sans-serif;
+
+  /* Ink / paper — the neutral scale, tinted toward the brand green rather
+     than generic slate/gray, so "neutral" UI still feels like this product. */
+  --color-ink: #14231a;
+  --color-ink-soft: #56645c;
+  --color-ink-faint: #8b968f;
+  --color-paper: #f6f7f1;
+  --color-line: #e2e7dc;
+  --color-card: #ffffff;
+
+  /* Brand green — primary actions, active nav, positive states. */
+  --color-brand-50: #eef8f1;
+  --color-brand-100: #d8f0e0;
+  --color-brand-200: #b3e0c3;
+  --color-brand-500: #2e9a5d;
+  --color-brand-600: #1f7a4d;
+  --color-brand-700: #145c35;
+  --color-brand-800: #0f4929;
+
+  /* Amber — low stock / pending / needs-attention. */
+  --color-amber-50: #fdf3e7;
+  --color-amber-500: #c97a2b;
+  --color-amber-700: #8a5a1c;
+
+  /* Rose — destructive / cancelled / failed. */
+  --color-rose-50: #fbebe8;
+  --color-rose-500: #b23b2e;
+  --color-rose-700: #8a2a20;
+
+  /* Blue — informational / in-transit states used by order statuses. */
+  --color-sky-50: #e9f1fb;
+  --color-sky-600: #1c5fa8;
+
+  /* Violet / teal — extra order-status accents (packed / ready) so the
+     status chip stays scannable at a glance without reusing brand green
+     for every "in progress" state. */
+  --color-violet-50: #efe9f8;
+  --color-violet-600: #6032a8;
+  --color-teal-50: #e3f5f0;
+  --color-teal-600: #0f6b58;
+
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+
+  --shadow-float: 0 12px 32px -8px rgb(20 35 26 / 0.18);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  font-family: "Karla", sans-serif;
-  background: var(--paper);
-  color: var(--ink);
-}
-
-h1,
-h2,
-h3,
-.brand,
-.order-number,
-.amount {
-  font-family: "Baloo 2", sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
 }
 
 button {
@@ -39,41 +75,31 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 ::-webkit-scrollbar {
   width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd3cc;
+  background: var(--color-line);
   border-radius: 20px;
-}
-
-.label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-  color: #5b6960;
-  margin-top: 4px;
-}
-
-.input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #dde3dc;
-  border-radius: 9px;
-  font-size: 15px;
-  margin-bottom: 18px;
-  background: #fff;
-  color: #1b1f1c;
-  outline: none;
-}
-
-.input:focus {
-  border-color: #1b7340;
-  box-shadow: 0 0 0 2px rgba(27, 115, 64, 0.15);
 }
